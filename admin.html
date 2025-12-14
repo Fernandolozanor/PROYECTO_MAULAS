@@ -251,33 +251,51 @@
             // --- NEW: FORCE SEED BUTTON (Debug) ---
             const btnSeed = document.createElement('button');
             btnSeed.textContent = "⚠️ RECARGAR DATOS FÁBRICA";
-            btnSeed.style.cssText = "background:red; color:white; border:none; padding:10px; margin-top:20px; border-radius:4px; font-weight:bold;";
+            btnSeed.style.cssText = "background:#d32f2f; color:white; border:none; padding:15px; margin: 20px 0; border-radius:4px; font-weight:bold; width:100%; font-size:1.1rem; cursor:pointer;";
             btnSeed.onclick = async () => {
-                if (confirm("¿Seguro? Esto intentará cargar los datos históricos si faltan.")) {
+                if (confirm("¿Seguro? Esto intentará cargar los datos históricos si faltan. Se generarán las jornadas futuras y se cargarán los pronósticos anteriores.")) {
+                    btnSeed.disabled = true;
+                    btnSeed.textContent = "Cargando scripts...";
+
                     if (!window.CloudSeeder) {
                         // Load scripts dynamically if not present
                         const s = document.createElement('script');
                         s.src = 'js/data_loader.js';
                         document.head.appendChild(s);
+
                         const s2 = document.createElement('script');
                         s2.src = 'js/cloud-seeder.js';
                         document.head.appendChild(s2);
 
+                        // Wait longer for big file
                         setTimeout(async () => {
-                            if (window.CloudSeeder) {
+                            if (window.CloudSeeder && window.HISTORICAL_DATA) {
+                                btnSeed.textContent = "Subiendo datos a la nube... (Esto puede tardar unos segundos)";
                                 await window.CloudSeeder.run(window.DataService);
-                                alert("Proceso finalizado. Refresca la página.");
+                                alert("¡Proceso finalizado con Éxito! Refresca la página.");
+                                window.location.reload();
                             } else {
-                                alert("Error cargando scripts. Espera unos segundos e intenta de nuevo.");
+                                alert("Error cargando scripts de datos. Revisa tu conexión e inténtalo de nuevo.");
+                                btnSeed.disabled = false;
+                                btnSeed.textContent = "⚠️ RECARGAR DATOS FÁBRICA";
                             }
-                        }, 2000);
+                        }, 3000);
                     } else {
+                        btnSeed.textContent = "Subiendo datos a la nube...";
                         await window.CloudSeeder.run(window.DataService);
                         alert("Proceso finalizado. Refresca la página.");
+                        window.location.reload();
                     }
                 }
             };
-            document.querySelector('.admin-grid').after(btnSeed);
+            // Insert BEFORE the grid so it's very visible
+            const container = document.querySelector('.main-container');
+            const grid = document.querySelector('.admin-grid');
+            if (container && grid) {
+                container.insertBefore(btnSeed, grid);
+            } else {
+                document.body.appendChild(btnSeed); // Fallback
+            }
         });
 
         async function loadDocuments() {
