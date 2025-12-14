@@ -1,0 +1,7 @@
+Crea una web que gestione el alta y la baja de los miembros de una peña de quinielas en España, llamada Maulas. El logotipo está en el fichero LOGOTIPO_MAULA.jpg de la carpeta. Haz la página en blanco con un botón llamado SOCIOS en la parte izquierda de la pantalla con el logotipo en el centro de la pantalla.
+Al pinchar en el botón socios se accederá al apartado socios de la web. Este apartado se hará en tonos verde pastel y constará de los botones ALTA DE NUEVOS SOCIOS y BAJA DE SOCIOS. En el Centro de la pantalla se mostrará un listado con los socios actuales dados de alta.
+los datos que se almacenarán y mostrarán de cada socio será,: Nº DE SOCIO (Correlativo y autonumérico), NOMBRE, APELLIDOS, CORREO ELECTRÓNICO Y Nº DE TELÉFONO.
+Los únicos datos obligatorios serán Nº DE SOCIO, NOMBRE y CORREO ELECTRÓNICO.
+El botón SOCIOS de la web principal será de color verde oscuro. Elimina la sombra del la imagen del logotipo.
+Añade también una opción para modificar los datos de un socio en activo.
+Cambia el nombre de la WEB a PEÑA MAULAS.
