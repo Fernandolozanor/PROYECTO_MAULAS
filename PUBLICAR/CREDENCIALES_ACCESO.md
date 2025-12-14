@@ -1,25 +1,20 @@
-# CÓMO ACCEDER A LA WEB (Credenciales)
+# CÓMO ACCEDER A LA WEB (Final)
 
-### ¡IMPORTANTE! TIENES QUE SUBIR LOS ÚLTIMOS CAMBIOS
-El problema que tenías era que la base de datos estaba vacía. He añadido un código para que se llene automáticamente.
-**Tienes que subir los cambios a GitHub otra vez.**
-1. Abre GitHub Desktop.
-2. Pon "Arreglo Login" en el resumen.
-3. Pulsa **Commit to main**.
-4. Pulsa **Push origin**.
-5. Espera 2 minutos.
+¡Lo hemos encontrado! El fallo era mucho más tonto de lo que pensaba: la página web intentaba entrar a toda velocidad **sin esperar** a que la base de datos respondiera. Por eso fallaba o te devolvía al inicio sin dejarte entrar.
 
-Una vez hecho esto, usa estas credenciales:
+He corregido ese fallo crítico. Ahora tienes que hacer esto:
 
-### 1. Contraseña Maestra
-> **`_Est4tuTo5M4uLAs!`**
+### PASO 1: Subir la corrección (Obligatorio)
+1. Abre **GitHub Desktop**.
+2. Verás que he modificado el archivo `login.html`.
+3. Escribe en el resumen: "Arreglo Login Final".
+4. Pulsa **Commit to main**.
+5. Pulsa **Push origin**.
+6. **Espera dos minutos**.
 
-### 2. Correo Electrónico (Elige uno)
-He actualizado la lista para que sea más fácil. Prueba con uno de estos:
+### PASO 2: Entrar
+Ahora sí, usa las credenciales de siempre:
+*   Email: `juanantonio@maulas.com`
+*   Pass: `_Est4tuTo5M4uLAs!`
 
-* `juanantonio@maulas.com`
-* `alvaro@maulas.com`
-* `carlos@maulas.com`
-* `fernandolozano@maulas.com`
-
-(Básicamente es el nombre del socio, todo junto, sin tildes, acabado en @maulas.com).
+Verás que ahora el botón cambia a **"Verificando..."** durante un segundo antes de entrar. Eso significa que está funcionando. ¡Perdona el mareo!
