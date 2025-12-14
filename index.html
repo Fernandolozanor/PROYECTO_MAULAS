@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PEÑA MAULAS</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <!-- DB Config -->
+    <script src="js/firebase-init.js"></script>
+    <script src="js/db-service.js"></script>
+    <style>
+        .dashboard-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-top: 2rem;
+            padding: 0 2rem;
+            max-width: 1200px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            text-align: center;
+            border: 1px solid #eee;
+            transition: transform 0.2s;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .stat-card h3 {
+            margin: 0 0 1rem 0;
+            font-size: 1rem;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: 800;
+            color: var(--primary-blue);
+        }
+
+        .highlight-card {
+            border-bottom: 4px solid var(--primary-gold);
+        }
+
+        .stat-wide-card {
+            grid-column: 1 / -1;
+            background: white;
+            padding: 1.5rem;
+            border-radius: 12px;
+            border: 1px solid #eee;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            text-align: center;
+        }
+
+        .stat-wide-card h3 {
+            margin-top: 0;
+            color: #666;
+        }
+    </style>
+</head>
+
+<body class="home-body">
+    <script src="js/auth.js"></script>
+    <script src="js/scoring.js"></script>
+
+    <!-- Sidebar Menu on the Left -->
+    <div class="sidebar-menu">
+        <a href="socios.html" class="btn-primary btn-socios">SOCIOS</a>
+        <a href="jornadas.html" class="btn-primary btn-jornadas">JORNADAS</a>
+        <a href="pronosticos.html" class="btn-primary btn-pronosticos">PRONÓSTICOS</a>
+        <a href="resultados.html" class="btn-primary btn-resultados">RESULTADOS</a>
+        <a href="resumen-temporada.html" class="btn-primary btn-resumen">RESUMEN TEMPORADA</a>
+    </div>
+
+    <!-- Main Content Area -->
+    <div style="margin-left: 280px; padding: 2rem; width: calc(100% - 280px); box-sizing: border-box;">
+
+        <!-- Logo in the Center -->
+        <div class="logo-container"
+            style="position:relative; left:0; transform:none; margin: 0 auto 2rem auto; max-width: 250px;">
+            <img src="LOGOTIPO_MAULA.JPG" alt="Logotipo Peña Maulas" class="main-logo" style="width:100%; height:auto;">
+        </div>
+
+        <div id="dashboard-stats" class="dashboard-stats">
+            <!-- Populated by JS -->
+            <p style="text-align:center; width:100%; color:#888;">Cargando resumen...</p>
+        </div>
+
+    </div>
+
+    <script src="js/dashboard.js"></script>
+</body>
+
+</html>
