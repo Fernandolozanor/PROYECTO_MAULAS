@@ -180,8 +180,8 @@ const CloudSeeder = {
                 active: true
             };
 
-            // Note: Since ID is time based, we add small delay or just force ID
-            jornadaObj.id = 1723852800000 + (jd.num * 86400000); // Fake consistent ID base
+            // Force ID = Number for consistency
+            jornadaObj.id = jd.num;
 
             await dbService.save('jornadas', jornadaObj);
         }
@@ -200,7 +200,7 @@ const CloudSeeder = {
                 const dStr = futureDate.toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' });
 
                 const jObj = {
-                    id: Date.now() + futureNum + Math.floor(Math.random() * 100000), // Unique ID
+                    id: futureNum,
                     number: futureNum,
                     season: '2025-2026',
                     date: dStr,
@@ -231,10 +231,6 @@ const CloudSeeder = {
 
         console.log("Seeding Pronosticos...");
 
-        // Members need to be mapped to IDs? 
-        // HISTORICAL_DATA key 'predictions' uses IDs key "1", "2"... 
-        // These match the seedDefaults IDs (1..19).
-
         for (const hData of window.HISTORICAL_DATA) {
             const jornadaNum = hData.jornada_num;
             const predictionsMap = hData.predictions;
@@ -242,20 +238,18 @@ const CloudSeeder = {
             for (const [memberId, preds] of Object.entries(predictionsMap)) {
                 if (!preds) continue;
 
-                // Create record
-                // ID logic: match_J{num}_{memberID}
-                const docId = `pron_J${jornadaNum}_M${memberId}`;
+                // Matches App ID format: {jId}_{mId}
+                const docId = `${jornadaNum}_${memberId}`;
 
-                // Firestore format
+                // Matches App Data Structure: jId, mId, selection
                 const record = {
                     id: docId,
-                    jornadaNum: jornadaNum,
-                    memberId: parseInt(memberId),
-                    predictions: preds,
-                    updatedAt: new Date().toISOString()
+                    jId: parseInt(jornadaNum),
+                    mId: parseInt(memberId),
+                    selection: preds,
+                    timestamp: new Date().toISOString()
                 };
 
-                // Use specific doc ID set
                 await dbService.db.collection('pronosticos').doc(docId).set(record);
             }
         }
