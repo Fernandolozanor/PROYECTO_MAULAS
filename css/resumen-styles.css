@@ -1,0 +1,317 @@
+/* Resumen Temporada page color overrides */
+.resumen-page .page-title {
+    color: var(--primary-orange);
+}
+
+.resumen-page .header-actions {
+    border-bottom-color: var(--pastel-accent-orange);
+}
+
+.resumen-page .btn-back {
+    border-color: var(--dark-orange);
+    color: var(--dark-orange);
+}
+
+.resumen-page .btn-back:hover {
+    background-color: var(--dark-orange);
+}
+
+/* Dashboard Layout */
+.dashboard-container {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 1.5rem;
+    margin-top: 1rem;
+}
+
+.dashboard-card {
+    background: white;
+    border-radius: 12px;
+    padding: 1.5rem;
+    box-shadow: var(--shadow-md);
+}
+
+.card-title {
+    color: var(--primary-orange);
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid var(--pastel-accent-orange);
+}
+
+/* Chart Card */
+.chart-card {
+    grid-column: 1 / 2;
+}
+
+.chart-wrapper {
+    position: relative;
+    height: 400px;
+    margin-top: 1rem;
+}
+
+/* Rankings Card */
+.rankings-card {
+    grid-column: 2 / 3;
+}
+
+.rankings-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.rankings-table thead th {
+    background-color: var(--primary-orange);
+    color: white;
+    padding: 0.8rem;
+    text-align: left;
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.rankings-table tbody tr {
+    border-bottom: 1px solid #eee;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.rankings-table tbody tr:hover {
+    background-color: var(--pastel-bg-orange);
+}
+
+.rankings-table tbody td {
+    padding: 0.8rem;
+    font-size: 0.9rem;
+}
+
+.rankings-table .rank-cell {
+    font-weight: bold;
+    color: var(--primary-orange);
+    text-align: center;
+    width: 50px;
+}
+
+.rankings-table .points-cell {
+    font-weight: bold;
+    color: var(--dark-orange);
+    text-align: center;
+}
+
+.rank-medal {
+    font-size: 1.2rem;
+}
+
+/* Modal Styles */
+.modal-large {
+    max-width: 1200px;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid var(--pastel-accent-orange);
+}
+
+.modal-header h2 {
+    color: var(--primary-orange);
+    margin: 0;
+}
+
+/* Jornada Detail Content */
+.jornada-info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.info-section {
+    background: #f9f9f9;
+    padding: 1rem;
+    border-radius: 8px;
+}
+
+.info-section h3 {
+    color: var(--primary-orange);
+    font-size: 1.1rem;
+    margin-bottom: 0.8rem;
+}
+
+.matches-grid {
+    display: grid;
+    gap: 0.5rem;
+}
+
+.match-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.5rem;
+    background: white;
+    border-radius: 6px;
+    border: 1px solid #eee;
+}
+
+.match-teams {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex: 1;
+}
+
+.team-logo {
+    width: 25px;
+    height: 25px;
+    object-fit: contain;
+}
+
+.match-result {
+    font-weight: bold;
+    color: var(--primary-orange);
+    min-width: 30px;
+    text-align: center;
+}
+
+.member-forecast-section {
+    margin-top: 1rem;
+}
+
+.forecast-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.forecast-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0.5rem;
+    background: #f9f9f9;
+    border-radius: 6px;
+    font-size: 0.85rem;
+}
+
+.forecast-item.correct {
+    background-color: #c8e6c9;
+    border: 2px solid #2e7d32;
+}
+
+.forecast-item.incorrect {
+    background-color: #ffcdd2;
+    border: 2px solid #d32f2f;
+}
+
+.forecast-number {
+    font-weight: bold;
+    color: #666;
+    margin-bottom: 0.2rem;
+}
+
+.forecast-sign {
+    font-size: 1.2rem;
+    font-weight: bold;
+}
+
+.forecast-item.correct .forecast-sign {
+    color: #2e7d32;
+}
+
+.forecast-item.incorrect .forecast-sign {
+    color: #d32f2f;
+}
+
+/* Member All Forecasts */
+.all-forecasts-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.jornada-forecast-block {
+    background: #f9f9f9;
+    padding: 1rem;
+    border-radius: 8px;
+}
+
+.jornada-forecast-block h4 {
+    color: var(--primary-orange);
+    margin-bottom: 0.8rem;
+}
+
+.forecast-summary {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
+}
+
+.forecast-summary span {
+    font-weight: 600;
+}
+
+.hits-count {
+    color: #2e7d32;
+}
+
+.points-earned {
+    color: var(--primary-orange);
+}
+
+/* Prizes Box */
+.prizes-box {
+    background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%);
+    padding: 1rem;
+    border-radius: 8px;
+    border: 2px solid var(--primary-orange);
+}
+
+.prizes-box h4 {
+    color: var(--dark-orange);
+    margin-bottom: 0.8rem;
+    font-size: 1rem;
+}
+
+.prize-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.4rem 0;
+    border-bottom: 1px solid rgba(244, 129, 0, 0.2);
+}
+
+.prize-item:last-child {
+    border-bottom: none;
+}
+
+.prize-category {
+    font-weight: 600;
+    color: #666;
+}
+
+.prize-amount {
+    font-weight: bold;
+    color: var(--primary-orange);
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+    .dashboard-container {
+        grid-template-columns: 1fr;
+    }
+
+    .chart-card,
+    .rankings-card {
+        grid-column: 1 / -1;
+    }
+
+    .jornada-info-grid {
+        grid-template-columns: 1fr;
+    }
+}
