@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PEÑA MAULAS - Gestión de Socios</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <!-- DB Config -->
+    <script src="js/firebase-init.js"></script>
+    <script src="js/db-service.js"></script>
+
+    <!-- Extra styles for this page specifically -->
+    <style>
+        .delete-btn {
+            background-color: #d32f2f;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+
+        .edit-btn {
+            background-color: #fdd835;
+            color: #333;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            margin-right: 5px;
+        }
+
+        .delete-btn:hover {
+            background-color: #b71c1c;
+        }
+
+        .edit-btn:hover {
+            background-color: #fbc02d;
+        }
+    </style>
+</head>
+
+<body class="page-body socios-page">
+    <script src="js/auth.js"></script>
+    <script src="js/scoring.js"></script>
+
+    <div class="main-container">
+        <!-- Header -->
+        <header class="header-actions">
+            <div>
+                <a href="index.html" class="btn-back">← Volver al Inicio</a>
+                <h1 class="page-title">Gestión de Socios</h1>
+            </div>
+
+            <div class="action-buttons">
+                <button id="btn-add" class="btn-action btn-add">
+                    ➕ ALTA DE NUEVOS SOCIOS
+                </button>
+                <button id="btn-remove" class="btn-action btn-remove">
+                    ➖ BAJA DE SOCIOS
+                </button>
+            </div>
+        </header>
+
+        <!-- List -->
+        <div class="members-list-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Nº Socio</th>
+                        <th>Nombre</th>
+                        <th>Correo Electrónico</th>
+                        <th>Teléfono</th>
+                        <th>Acción</th>
+                    </tr>
+                </thead>
+                <tbody id="members-table-body">
+                    <!-- Javascript will populate this -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Modal for Alta/Edición -->
+    <div id="add-modal" class="modal-overlay">
+        <div class="modal">
+            <h2 id="modal-title">Gestión de Socio</h2>
+            <form id="add-form">
+                <input type="hidden" id="inp-id">
+                <div class="form-group">
+                    <label for="inp-name">Nombre Completo</label>
+                    <input type="text" id="inp-name" required>
+                </div>
+                <div class="form-group">
+                    <label for="inp-email">Correo Electrónico *</label>
+                    <input type="email" id="inp-email" required placeholder="juan@ejemplo.com">
+                </div>
+                <div class="form-group">
+                    <label for="inp-phone">Nº de Teléfono</label>
+                    <input type="tel" id="inp-phone" placeholder="600 000 000">
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" id="btn-cancel" class="btn-action"
+                        style="background: #f5f5f5; color:#333;">Cancelar</button>
+                    <button type="submit" class="btn-action btn-add">Guardar Datos</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="js/app.js"></script>
+</body>
+
+</html>
