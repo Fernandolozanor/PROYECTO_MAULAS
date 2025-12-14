@@ -1,28 +1,22 @@
-# CÓMO ARREGLAR LA CARGA DE DATOS (Si falló)
+# CÓMO CARGAR TODOS LOS DATOS (FINAL)
 
-Parece que el sistema automático se quedó "a medias" porque no pudo cargar los archivos necesarios. He creado un **botón manual** para forzar la carga.
+He actualizado la herramienta de carga para incluir **las jornadas futuras** (que faltaban) y asegurar que los pronósticos históricos (resultados) se carguen bien.
 
-### 1. Subir cambios obligatorios (Como siempre)
+### 1. Subir cambios obligatorios (GitHub Desktop)
 1. Abre **GitHub Desktop**.
-2. Pon en resumen: "Arreglo Carga Datos y Listado Socios".
+2. Resumen: "Arreglo Final Carga Datos".
 3. Pulsa **Commit to main**.
 4. Pulsa **Push origin**.
 5. Espera 2 minutos.
 
 ### 2. Forzar la carga
-1. Entra en tu web.
-2. Inicia sesión como Admnistrador (ej: `juanantonio@maulas.com`).
-3. Ve a la página de **ADMINISTRACIÓN** (botón en el menú lateral o en la cabecera).
-4. Abajo del todo verás un BOTÓN ROJO nuevo: **⚠️ RECARGAR DATOS FÁBRICA**.
-5. Púlsalo. Acepta el aviso.
-6. Espera a que termine.
+1. Entra en tu web -> Gestión Admin.
+2. Ahora verás el BOTÓN ROJO mucho más grande y visible, justo debajo del título "Administración".
+3. **Púlsalo**.
+4. Te pedirá confirmación. Acepta.
+5. El botón pondrá "Cargando scripts..." y luego "Subiendo datos...".
+6. **ESPERA** hasta que salga una alerta diciendo que ha terminado.
 
-Ahora sí deberían salirte todas las jornadas y pronósticos antiguos.
-
----
-
-### Listado de Socios
-He generado el archivo que me pediste con todos los correos. Lo tienes en la carpeta del proyecto con el nombre:
-`LISTADO_SOCIOS.md`
-
-Puedes abrirlo con el Bloc de Notas para copiar los correos.
+Cuando veas "Proceso finalizado con Éxito", la página se recargará y ya deberías tener:
+*   Todas las jornadas hasta final de temporada.
+*   Todos los resultados y pronósticos pasados.
