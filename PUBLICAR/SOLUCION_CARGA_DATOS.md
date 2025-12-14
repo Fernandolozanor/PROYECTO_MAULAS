@@ -1,18 +1,10 @@
-# CÓMO ARREGLAR LA CARGA DE DATOS (FINAL DEFINITIVA)
+# CÓMO VER LOS DATOS CORRECTAMENTE
 
-He modificado el código del botón para que sea imposible que falle. Ahora es una función global que no depende de que cargue la página primero.
+El problema de "Faltan datos" era porque las páginas de **Resultados** y **Pronósticos** seguían mirando en tu "disco duro antiguo" (localStorage) en lugar de en la Nube. Ya las he conectado a la Nube.
 
-### 1. Sobre tu duda de GitHub Desktop
-**SÍ, PUEDES HACER COMMIT DE TODO A LA VEZ.**
-1. En la lista de archivos a la izquierda ("Changes"), asegúrate de que **TODAS** las casillas están marcadas (el tick azul arriba).
-2. Si están todas marcadas, solo escribe **un resumen** abajo (ej: "Arreglo Final") y pulsa **Commit to main**.
-3. Se subirán todos los archivos juntos.
+### Pasos Finales
+1. Haz **Commit** y **Push** en GitHub Desktop.
+2. Ve a la web y recarga con `Control + F5` (IMPORTANTE).
+3. Ahora sí verás los datos que cargaste con el botón rojo.
 
-### 2. Forzar la carga
-1. Haz el Commit y Push **ahora**.
-2. Entra en tu web -> Administración.
-3. Pulsa el botón rojo **⚠️ RECARGAR DATOS FÁBRICA**.
-4. Ahora debería pedirte confirmación inmediatamente.
-5. Espera a que termine.
-
-**Nota:** Si el botón sigue sin hacer nada tras actualizar, prueba a pulsar `Control + F5` en el navegador para borrar la memoria caché antigua.
+Si ya habías pulsado el botón rojo antes con éxito, no hace falta que lo pulses de nuevo. Solo verifica que en "Resultados" ahora salen las tablas llenas.

@@ -1,36 +1,19 @@
 
 class ResultsManager {
     constructor() {
-        this.members = JSON.parse(localStorage.getItem('maulas_members')) || [];
-        this.jornadas = JSON.parse(localStorage.getItem('maulas_jornadas')) || [];
-        this.pronosticos = JSON.parse(localStorage.getItem('maulas_pronosticos')) || [];
-
+        this.members = [];
+        this.jornadas = [];
+        this.pronosticos = [];
         this.init();
     }
 
-    init() {
-        // Auto-import if available and seemingly empty?
-        // Or always import to ensure freshness from the file?
-        // User complained "No veo pronosticos".
-        // Let's force import if we have the loader.
-        if (typeof importHistoricalData === 'function') {
-            console.log("Auto-importing historical data in Results...");
-            // We need to reload pronosticos after import
-            // importHistoricalData writes to localStorage.
-            // But our constructor already read it.
-            // So we should:
-            // 1. Run Import
-            // 2. Re-read localStorage
+    async init() {
+        if (window.DataService) await window.DataService.init();
 
-            // To avoid alerting every time, maybe modify importHistoricalData to be silent or checking first?
-            // The python script generated a function that alerts.
-            // Let's override it or just call it and live with the alert for now, or assume the user wants it fixed.
-            // Actually, better: read localStorage; if empty or small, import.
-
-            // Re-read inside calculateAndRender or reload here
-            importHistoricalData(); // This currently alerts.
-            this.pronosticos = JSON.parse(localStorage.getItem('maulas_pronosticos')) || [];
-        }
+        console.log("ResultsManager: Loading data from Cloud...");
+        this.members = await window.DataService.getAll('members');
+        this.jornadas = await window.DataService.getAll('jornadas');
+        this.pronosticos = await window.DataService.getAll('pronosticos');
 
         this.calculateAndRender();
     }
@@ -293,14 +276,14 @@ class ResultsManager {
         wrapper.classList.remove('hidden');
     }
 
-    togglePardon(jId, mId) {
+    async togglePardon(jId, mId) {
         if (!confirm('¿Anular la sanción por retraso para este pronóstico?')) return;
 
         // Find pronostico
-        const pIdx = this.pronosticos.findIndex(p => p.jId == jId && p.mId == mId);
-        if (pIdx > -1) {
-            this.pronosticos[pIdx].pardoned = true;
-            localStorage.setItem('maulas_pronosticos', JSON.stringify(this.pronosticos));
+        const p = this.pronosticos.find(p => p.jId == jId && p.mId == mId);
+        if (p) {
+            p.pardoned = true;
+            await window.DataService.save('pronosticos', p);
             this.calculateAndRender();
         }
     }

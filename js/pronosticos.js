@@ -1,9 +1,9 @@
 
 class PronosticoManager {
     constructor() {
-        this.members = JSON.parse(localStorage.getItem('maulas_members')) || [];
-        this.jornadas = JSON.parse(localStorage.getItem('maulas_jornadas')) || [];
-        this.pronosticos = JSON.parse(localStorage.getItem('maulas_pronosticos')) || [];
+        this.members = [];
+        this.jornadas = [];
+        this.pronosticos = [];
 
         this.currentMemberId = null;
         this.currentJornadaId = null;
@@ -11,7 +11,13 @@ class PronosticoManager {
         this.init();
     }
 
-    init() {
+    async init() {
+        if (window.DataService) await window.DataService.init();
+
+        this.members = await window.DataService.getAll('members');
+        this.jornadas = await window.DataService.getAll('jornadas');
+        this.pronosticos = await window.DataService.getAll('pronosticos');
+
         this.cacheDOM();
         this.populateDropdowns();
         this.bindEvents();
@@ -248,7 +254,7 @@ class PronosticoManager {
         el.classList.add('selected');
     }
 
-    saveForecast() {
+    async saveForecast() {
         if (!this.currentMemberId || !this.currentJornadaId) return;
 
         const rows = this.container.querySelectorAll('.p-options');
@@ -289,15 +295,12 @@ class PronosticoManager {
 
         const idx = this.pronosticos.findIndex(p => p.id === id);
         if (idx > -1) {
-            // Preserve 'pardoned' status if exists logic?
-            // User requested ability to pardon. If saving again, maybe reset pardon logic or keep?
-            // For now, simpler equals better.
             this.pronosticos[idx] = { ...this.pronosticos[idx], ...record };
         } else {
             this.pronosticos.push(record);
         }
 
-        localStorage.setItem('maulas_pronosticos', JSON.stringify(this.pronosticos));
+        await window.DataService.save('pronosticos', record);
 
         // Show random Maula phrase
         if (typeof FRASES_MAULA !== 'undefined' && FRASES_MAULA.length > 0) {
