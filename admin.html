@@ -113,7 +113,7 @@
         </header>
 
         <!-- Manual Seed Button (Static) -->
-        <button id="btn-seed-data"
+        <button id="btn-seed-data" onclick="runManualSeed(this)"
             style="background:#d32f2f; color:white; border:none; padding:15px; margin: 20px 0; border-radius:4px; font-weight:bold; width:100%; font-size:1.1rem; cursor:pointer; display:block;">
             ⚠️ RECARGAR DATOS FÁBRICA
         </button>
@@ -254,44 +254,7 @@
                 reader.readAsDataURL(file);
             });
 
-            // --- FORCE SEED BUTTON LOGIC ---
-            const btnSeed = document.getElementById('btn-seed-data');
-            btnSeed.onclick = async () => {
-                if (confirm("¿Seguro? Esto intentará cargar los datos históricos si faltan. Se generarán las jornadas futuras y se cargarán los pronósticos anteriores.")) {
-                    btnSeed.disabled = true;
-                    btnSeed.textContent = "Cargando scripts...";
 
-                    if (!window.CloudSeeder) {
-                        // Load scripts dynamically if not present
-                        const s = document.createElement('script');
-                        s.src = 'js/data_loader.js';
-                        document.head.appendChild(s);
-
-                        const s2 = document.createElement('script');
-                        s2.src = 'js/cloud-seeder.js';
-                        document.head.appendChild(s2);
-
-                        // Wait longer for big file
-                        setTimeout(async () => {
-                            if (window.CloudSeeder && window.HISTORICAL_DATA) {
-                                btnSeed.textContent = "Subiendo datos a la nube... (Esto puede tardar unos segundos)";
-                                await window.CloudSeeder.run(window.DataService);
-                                alert("¡Proceso finalizado con Éxito! Refresca la página.");
-                                window.location.reload();
-                            } else {
-                                alert("Error cargando scripts de datos. Revisa tu conexión e inténtalo de nuevo.");
-                                btnSeed.disabled = false;
-                                btnSeed.textContent = "⚠️ RECARGAR DATOS FÁBRICA";
-                            }
-                        }, 3000);
-                    } else {
-                        btnSeed.textContent = "Subiendo datos a la nube...";
-                        await window.CloudSeeder.run(window.DataService);
-                        alert("Proceso finalizado. Refresca la página.");
-                        window.location.reload();
-                    }
-                }
-            };
 
         });
 
@@ -404,6 +367,55 @@
             });
             container.innerHTML = html;
         }
+
+        // GLOBAL FUNCTION FOR BUTTON
+        window.runManualSeed = async function (btnSeed) {
+            if (confirm("¿Seguro? Esto intentará cargar los datos históricos si faltan. Se generarán las jornadas futuras y se cargarán los pronósticos anteriores.")) {
+                btnSeed.disabled = true;
+                btnSeed.textContent = "Cargando scripts...";
+
+                if (!window.CloudSeeder) {
+                    // Load scripts dynamically if not present
+                    const s = document.createElement('script');
+                    s.src = 'js/data_loader.js';
+                    document.head.appendChild(s);
+
+                    const s2 = document.createElement('script');
+                    s2.src = 'js/cloud-seeder.js';
+                    document.head.appendChild(s2);
+
+                    // Wait longer for big file
+                    setTimeout(async () => {
+                        // Check explicit window scope
+                        if (window.CloudSeeder && window.HISTORICAL_DATA) {
+                            btnSeed.textContent = "Subiendo datos a la nube... (Esto puede tardar unos segundos)";
+                            await window.CloudSeeder.run(window.DataService);
+                            alert("¡Proceso finalizado con Éxito! Refresca la página.");
+                            window.location.reload();
+                        } else {
+                            // Retry once more just in case
+                            setTimeout(async () => {
+                                if (window.CloudSeeder && window.HISTORICAL_DATA) {
+                                    btnSeed.textContent = "Subiendo datos a la nube... (Esto puede tardar unos segundos)";
+                                    await window.CloudSeeder.run(window.DataService);
+                                    alert("¡Proceso finalizado con Éxito! Refresca la página.");
+                                    window.location.reload();
+                                } else {
+                                    alert("Error cargando scripts de datos. Revisa tu conexión e inténtalo de nuevo.");
+                                    btnSeed.disabled = false;
+                                    btnSeed.textContent = "⚠️ RECARGAR DATOS FÁBRICA";
+                                }
+                            }, 2000);
+                        }
+                    }, 3000);
+                } else {
+                    btnSeed.textContent = "Subiendo datos a la nube...";
+                    await window.CloudSeeder.run(window.DataService);
+                    alert("Proceso finalizado. Refresca la página.");
+                    window.location.reload();
+                }
+            }
+        };
     </script>
 </body>
 
