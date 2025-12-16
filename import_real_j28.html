@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Importador Jornada 14/12/2025</title>
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <!-- App Scripts -->
+    <script src="js/firebase-init.js"></script>
+    <script src="js/db-service.js"></script>
+</head>
+
+<body style="font-family: sans-serif; padding: 50px; text-align: center;">
+    <h1>Importador de Resultados - Jornada 14 Dic</h1>
+    <h2>Datos Recuperados de "El Quinielista"</h2>
+
+    <div
+        style="background: #f9f9f9; padding: 20px; border-radius: 8px; border: 1px solid #ddd; max-width: 600px; margin: 0 auto; text-align: left;">
+        <p>Se han encontrado los siguientes resultados para la fecha <strong>14/12/2025</strong>:</p>
+        <ul id="match-list" style="font-size: 0.9rem; line-height: 1.6;">
+            <!-- Filled by JS -->
+        </ul>
+
+        <br>
+        <button id="btn-import"
+            style="width: 100%; font-size: 18px; padding: 15px; cursor: pointer; background: #e65100; color: white; border: none; border-radius: 5px;">
+            CONFIRMAR E IMPORTAR COMO JORNADA 28
+        </button>
+    </div>
+
+    <script>
+        // Datos extraídos por el agente (Jornada ~11 en web, pero corresponde a la fecha pedida)
+        const EXTRACTED_DATA = [
+            { h: 'At. Madrid', a: 'Valencia', r: '1' },
+            { h: 'Mallorca', a: 'Elche', r: '2' },
+            { h: 'Barcelona', a: 'Osasuna', r: '1' },
+            { h: 'Getafe', a: 'Espanyol', r: '1' },
+            { h: 'Sevilla', a: 'R. Oviedo', r: 'X' }, // Normalized R.Oviedo
+            { h: 'Celta', a: 'Athletic Club', r: 'X' },
+            { h: 'Levante', a: 'Villarreal', r: '2' },
+            { h: 'Alavés', a: 'Real Madrid', r: '2' }, // Normalized R.Madrid
+            { h: 'Sporting', a: 'Granada', r: '1' },
+            { h: 'Valladolid', a: 'Andorra', r: 'X' },
+            { h: 'Racing Santander', a: 'Leganés', r: 'X' },
+            { h: 'R. Zaragoza', a: 'Cádiz', r: '1' },
+            { h: 'Almería', a: 'Burgos', r: '1' },
+            { h: 'Ceuta', a: 'Las Palmas', r: '2' },
+            { h: 'Rayo Vallecano', a: 'Betis', r: '2-0' } // Normalized Rayo V.
+        ];
+
+        const list = document.getElementById('match-list');
+        const btn = document.getElementById('btn-import');
+
+        // Render preview
+        EXTRACTED_DATA.forEach((m, i) => {
+            const li = document.createElement('li');
+            li.textContent = `${i + 1}. ${m.h} - ${m.a} : ${m.r}`;
+            list.appendChild(li);
+        });
+
+        btn.addEventListener('click', async () => {
+            btn.disabled = true;
+            btn.innerText = "Guardando...";
+
+            try {
+                if (!window.DataService) await new Promise(r => setTimeout(r, 1000));
+                await window.DataService.init();
+
+                const jornadas = await window.DataService.getAll('jornadas');
+                let j28 = jornadas.find(j => j.number == 28 || j.id == 28);
+
+                const dataToSave = {
+                    id: 28,
+                    number: 28,
+                    season: '2025-2026',
+                    date: '14 de diciembre de 2025',
+                    active: true,
+                    matches: EXTRACTED_DATA.map(m => ({
+                        home: m.h,
+                        away: m.a,
+                        result: m.r
+                    }))
+                };
+
+                // Merge ID if existing to avoid dupes (though ID 28 is forced)
+                if (j28) {
+                    j28.matches = dataToSave.matches;
+                    j28.date = dataToSave.date;
+                    j28.active = true;
+                    await window.DataService.save('jornadas', j28);
+                } else {
+                    await window.DataService.save('jornadas', dataToSave);
+                }
+
+                alert("Datos importados correctamente en la Jornada 28.");
+                window.location.href = 'pronosticos.html';
+
+            } catch (e) {
+                console.error(e);
+                alert("Error: " + e.message);
+                btn.disabled = false;
+                btn.innerText = "Reintentar";
+            }
+        });
+    </script>
+</body>
+
+</html>
