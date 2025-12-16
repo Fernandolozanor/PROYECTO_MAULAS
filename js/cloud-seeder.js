@@ -217,15 +217,9 @@ const CloudSeeder = {
 
     seedPronosticos: async function (dbService) {
         // Wait for HISTORICAL_DATA (up to 5s)
-        let attempts = 0;
-        while (!window.HISTORICAL_DATA && attempts < 10) {
-            await new Promise(r => setTimeout(r, 500));
-            attempts++;
-        }
-
         if (!window.HISTORICAL_DATA) {
-            console.warn("HISTORICAL_DATA not found. Skipping predictions.");
-            alert("AVISO: No se encontraron los pronósticos históricos (data_loader.js no cargó a tiempo). Inténtalo de nuevo.");
+            console.error("CloudSeeder: HISTORICAL_DATA not found even after script load.");
+            alert("Error Crítico: No se encontraron los datos históricos para la importación.");
             return;
         }
 
