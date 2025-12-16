@@ -170,10 +170,15 @@ class DashboardManager {
                 deadline.setHours(17, 0, 0, 0);
 
                 this.startCountdown(deadline);
+
+                // Format deadline date: "Jueves dd/mm"
+                const dayName = "Jueves";
+                const dateFormatted = deadline.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
+
                 deadlineHtml = `
                     <div style="margin-top:1.5rem; background:#fff3e0; padding:1rem; border-radius:8px; border:1px solid #ffe0b2;">
                         <div style="color:#e65100; font-weight:bold; margin-bottom:0.5rem; font-size:0.9rem;">
-                            ⏳ Límite para rellenar: Jueves 17:00h
+                            ⏳ Límite para rellenar: ${dayName} ${dateFormatted} 17:00h
                         </div>
                         <div id="countdown-timer" style="font-size:2.2rem; font-weight:800; color:#333; font-family:monospace;">
                             --:--:--:--

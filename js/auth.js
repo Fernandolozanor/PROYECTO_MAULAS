@@ -86,7 +86,7 @@ const Auth = {
                 btn.id = "btn-logout-sidebar";
                 btn.textContent = "CERRAR SESIÓN";
                 btn.className = "btn-primary";
-                btn.style.backgroundColor = "#546e7a";
+                btn.style.backgroundColor = "#000000";
                 btn.style.marginTop = "auto"; // Push to bottom
                 btn.onclick = (e) => {
                     e.preventDefault();
