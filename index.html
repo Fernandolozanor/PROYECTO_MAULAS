@@ -25,12 +25,12 @@
         }
 
         .stat-card {
-            background: white;
+            background: var(--card-bg);
             padding: 1.5rem;
             border-radius: 12px;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
             text-align: center;
-            border: 1px solid #eee;
+            border: var(--glass-border);
             transition: transform 0.2s;
         }
 
@@ -41,7 +41,7 @@
         .stat-card h3 {
             margin: 0 0 1rem 0;
             font-size: 1rem;
-            color: #666;
+            color: var(--text-light);
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
@@ -50,6 +50,7 @@
             font-size: 2.5rem;
             font-weight: 800;
             color: var(--primary-blue);
+            text-shadow: 0 0 10px rgba(41, 182, 246, 0.3);
         }
 
         .highlight-card {
@@ -58,17 +59,17 @@
 
         .stat-wide-card {
             grid-column: 1 / -1;
-            background: white;
+            background: var(--card-bg);
             padding: 1.5rem;
             border-radius: 12px;
-            border: 1px solid #eee;
+            border: var(--glass-border);
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
             text-align: center;
         }
 
         .stat-wide-card h3 {
             margin-top: 0;
-            color: #666;
+            color: var(--text-secondary);
         }
     </style>
 </head>
@@ -102,7 +103,41 @@
 
     </div>
 
+    <div id="theme-controls">
+        <button class="theme-toggle-btn" id="themeToggle" title="Cambiar Tema">🌙</button>
+    </div>
+
     <script src="js/dashboard.js"></script>
+
+    <script>
+        // Theme Logic Shared
+        (function () {
+            const themeBtn = document.getElementById('themeToggle');
+            const body = document.body;
+
+            // Apply theme from storage immediately
+            const savedTheme = localStorage.getItem('theme');
+            if (savedTheme === 'dark') {
+                body.setAttribute('data-theme', 'dark');
+                themeBtn.textContent = '☀️';
+                if (body.classList.contains('home-body')) { body.style.backgroundColor = 'var(--main-bg)'; }
+            }
+
+            themeBtn.addEventListener('click', () => {
+                if (body.getAttribute('data-theme') === 'dark') {
+                    body.removeAttribute('data-theme');
+                    localStorage.setItem('theme', 'light');
+                    themeBtn.textContent = '🌙';
+                    if (body.classList.contains('home-body')) { body.style.backgroundColor = '#ffffff'; }
+                } else {
+                    body.setAttribute('data-theme', 'dark');
+                    localStorage.setItem('theme', 'dark');
+                    themeBtn.textContent = '☀️';
+                    if (body.classList.contains('home-body')) { body.style.backgroundColor = 'var(--main-bg)'; }
+                }
+            });
+        })();
+    </script>
 </body>
 
 </html>

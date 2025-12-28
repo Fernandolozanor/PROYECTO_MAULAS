@@ -42,6 +42,115 @@
     --warning: #f57f17;
     --shadow-sm: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
     --shadow-md: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+
+    /* UI Elements */
+    --card-bg: #ffffff;
+    --main-bg: #ffffff;
+    --modal-bg: #ffffff;
+    --input-bg: #ffffff;
+    --input-border: #ddd;
+    --text-main: #1b1b1b;
+    --text-secondary: #555555;
+    --glass-border: transparent;
+}
+
+[data-theme="dark"] {
+    /* Tech/Dark Mode Palette */
+
+    /* Socios - Neon Green */
+    --primary-green: #00e676;
+    --dark-green: #00a854;
+    --pastel-bg-green: #0a1f13;
+    --pastel-accent-green: #1b5e20;
+
+    /* Jornadas - Electric Blue */
+    --primary-blue: #29b6f6;
+    --dark-blue: #0288d1;
+    --pastel-bg-blue: #0a1929;
+    --pastel-accent-blue: #1565c0;
+
+    /* Pronósticos - Laser Red */
+    --primary-red: #ff5252;
+    --dark-red: #d32f2f;
+    --pastel-bg-red: #2a0b0e;
+    --pastel-accent-red: #b71c1c;
+
+    /* Resultados - Cyber Purple */
+    --primary-purple: #e040fb;
+    --dark-purple: #aa00ff;
+    --pastel-bg-purple: #1a0a24;
+    --pastel-accent-purple: #7b1fa2;
+
+    /* Resumen Temporada - Neon Orange */
+    --primary-orange: #ff9100;
+    --dark-orange: #e65100;
+    --pastel-bg-orange: #2a1200;
+    --pastel-accent-orange: #ef6c00;
+
+    /* Common Dark */
+    --pastel-bg: #0f172a;
+    /* Slate 900 */
+    --pastel-card: #1e293b;
+    /* Slate 800 */
+    --pastel-accent: #334155;
+
+    --text-dark: #f8fafc;
+    /* Slate 50 */
+    --text-light: #94a3b8;
+    /* Slate 400 */
+
+    --card-bg: rgba(30, 41, 59, 0.7);
+    /* Glassy dark */
+    --main-bg: #0f172a;
+    --modal-bg: #1e293b;
+    --input-bg: #0f172a;
+    --input-border: #334155;
+
+    --text-main: #f1f5f9;
+    --text-secondary: #cbd5e1;
+
+    --shadow-sm: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+    --shadow-md: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.3);
+
+    --glass-border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+body {
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Theme Toggle Button */
+.theme-toggle-btn {
+    position: fixed;
+    top: 1.5rem;
+    right: 1.5rem;
+    background: rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    color: var(--text-dark);
+    width: 45px;
+    height: 45px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    cursor: pointer;
+    z-index: 1000;
+    transition: all 0.3s ease;
+    box-shadow: var(--shadow-sm);
+}
+
+[data-theme="dark"] .theme-toggle-btn {
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #fbbf24;
+    /* Amber for sun icon */
+    box-shadow: 0 0 15px rgba(251, 191, 36, 0.3);
+}
+
+.theme-toggle-btn:hover {
+    transform: rotate(15deg) scale(1.1);
 }
 
 * {
@@ -323,8 +432,9 @@ body {
     width: 98%;
     max-width: none;
     margin: 0 auto;
-    background-color: rgba(255, 255, 255, 0.9);
+    background-color: var(--card-bg);
     backdrop-filter: blur(10px);
+    border: var(--glass-border);
     border-radius: 12px;
     padding: 1.5rem;
     box-shadow: var(--shadow-md);
@@ -430,7 +540,7 @@ body {
     display: flex;
     gap: 2rem;
     margin-bottom: 2rem;
-    background: white;
+    background: var(--card-bg);
     padding: 1.5rem;
     border-radius: 12px;
     box-shadow: var(--shadow-sm);
@@ -447,7 +557,9 @@ body {
 .dropdown-group select {
     padding: 0.8rem;
     border-radius: 8px;
-    border: 1px solid #ddd;
+    border: 1px solid var(--input-border);
+    background-color: var(--input-bg);
+    color: var(--text-main);
     font-size: 1rem;
 }
 
@@ -463,10 +575,10 @@ body {
 .pronostico-row {
     display: flex;
     align-items: center;
-    background: white;
+    background: var(--card-bg);
     padding: 0.8rem;
     border-radius: 8px;
-    border: 1px solid #eee;
+    border: 1px solid var(--input-border);
 }
 
 .p-match-info {
@@ -492,7 +604,7 @@ body {
 .chk-option {
     width: 35px;
     height: 35px;
-    border: 2px solid #ddd;
+    border: 2px solid var(--input-border);
     border-radius: 50%;
     display: flex;
     align-items: center;
@@ -542,7 +654,8 @@ body {
 .table-container {
     flex: 1;
     overflow-x: auto;
-    background: white;
+    background: var(--card-bg);
+    border: var(--glass-border);
     border-radius: 12px;
     box-shadow: var(--shadow-sm);
     padding: 1rem;
@@ -564,8 +677,8 @@ thead th {
 
 tbody td {
     padding: 1rem;
-    border-bottom: 1px solid #eee;
-    color: var(--text-dark);
+    border-bottom: 1px solid var(--input-border);
+    color: var(--text-main);
 }
 
 .jornadas-grid {
@@ -576,11 +689,11 @@ tbody td {
 }
 
 .jornada-card {
-    background: white;
+    background: var(--card-bg);
     border-radius: 12px;
     padding: 1.5rem;
     box-shadow: var(--shadow-sm);
-    border: 1px solid #eee;
+    border: 1px solid var(--input-border);
     transition: all 0.3s ease;
     cursor: pointer;
 }
@@ -634,7 +747,7 @@ tbody td {
 }
 
 .modal {
-    background: white;
+    background: var(--modal-bg);
     padding: 2rem;
     border-radius: 16px;
     width: 100%;
@@ -652,7 +765,7 @@ tbody td {
 
 .modal h2 {
     margin-bottom: 1.5rem;
-    color: var(--text-dark);
+    color: var(--text-main);
 }
 
 .form-group {
@@ -663,14 +776,16 @@ tbody td {
     display: block;
     margin-bottom: 0.5rem;
     font-size: 0.9rem;
-    color: var(--text-light);
+    color: var(--text-secondary);
 }
 
 .form-group input,
 .form-group select {
     width: 100%;
     padding: 0.8rem;
-    border: 1px solid #ddd;
+    border: 1px solid var(--input-border);
+    background-color: var(--input-bg);
+    color: var(--text-main);
     border-radius: 6px;
     font-size: 1rem;
 }

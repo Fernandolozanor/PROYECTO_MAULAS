@@ -8,6 +8,10 @@ class PronosticoManager {
         this.currentMemberId = null;
         this.currentJornadaId = null;
 
+        // Correction Mode State
+        this.correctionMode = false;
+        this.pendingSaveData = null; // To store data while audit modal is open
+
         this.init();
     }
 
@@ -20,6 +24,7 @@ class PronosticoManager {
 
         this.cacheDOM();
         this.populateDropdowns();
+        this.renderSummaryTable(); // Initial render
         this.bindEvents();
     }
 
@@ -30,6 +35,73 @@ class PronosticoManager {
         this.statusMsg = document.getElementById('status-message');
         this.deadlineInfo = document.getElementById('deadline-info');
         this.btnSave = document.getElementById('btn-save');
+
+        // Summary Table Elements
+        this.summaryTable = document.getElementById('forecast-summary-table');
+        this.summaryContainer = document.getElementById('summary-container');
+
+        // Correction Mode Elements
+        this.chkCorrection = document.getElementById('chk-correction-mode');
+        this.lblCorrection = document.getElementById('lbl-correction');
+
+        // Audit Modal Elements
+        this.auditModal = document.getElementById('audit-modal-overlay');
+        this.auditReason = document.getElementById('audit-reason');
+        this.auditLateCheck = document.getElementById('audit-late-penalty');
+        this.btnConfirmAudit = document.getElementById('btn-confirm-audit');
+        this.btnCancelAudit = document.getElementById('btn-cancel-audit');
+        this.btnToggleSummary = document.getElementById('btn-toggle-summary'); // Added this line
+        if (this.btnToggleSummary) {
+            this.btnToggleSummary.addEventListener('click', () => {
+                const isHidden = this.summaryContainer.style.display === 'none';
+                this.summaryContainer.style.display = isHidden ? 'block' : 'none';
+            });
+        }
+
+        // Table Delegation for clicking cells
+        if (this.summaryTable) {
+            this.summaryTable.addEventListener('click', (e) => {
+                // Find closest cell
+                const cell = e.target.closest('td.summary-cell');
+                if (cell) {
+                    const jId = cell.dataset.jid; // String from DOM
+                    const mId = cell.dataset.mid; // String from DOM
+                    if (jId && mId) {
+                        this.selectAndLoad(jId, mId);
+                    }
+                }
+            });
+        }
+
+        // Correction Toggle
+        if (this.chkCorrection) {
+            this.chkCorrection.addEventListener('change', (e) => {
+                this.correctionMode = e.target.checked;
+                this.updateCorrectionUI();
+                this.loadForecast(); // Reload to update lock state
+            });
+        }
+
+        // Audit Modal Actions
+        if (this.btnConfirmAudit) this.btnConfirmAudit.addEventListener('click', () => this.executeAuditSave());
+        if (this.btnCancelAudit) this.btnCancelAudit.addEventListener('click', () => {
+            this.auditModal.style.display = 'none';
+            document.body.style.overflow = ''; // Restaurar scroll
+            this.pendingSaveData = null;
+        });
+    }
+
+    updateCorrectionUI() {
+        const slider = this.chkCorrection.nextElementSibling;
+        if (this.correctionMode) {
+            slider.style.backgroundColor = 'var(--primary-orange)';
+            this.lblCorrection.style.color = 'var(--primary-orange)';
+            this.lblCorrection.textContent = "MODO CORRECCIÓN ACTIVO";
+        } else {
+            slider.style.backgroundColor = '#ccc';
+            this.lblCorrection.style.color = 'var(--text-secondary)';
+            this.lblCorrection.textContent = "Modo Corrección";
+        }
     }
 
     bindEvents() {
@@ -44,6 +116,49 @@ class PronosticoManager {
         });
 
         this.btnSave.addEventListener('click', () => this.saveForecast());
+    }
+
+    selectAndLoad(jId, mId) {
+        // Convert to proper types (IDs are usually generated strings or numbers, assuming check matches)
+        // Check types in arrays. Firestore IDs are strings, but code used parseInt sometimes.
+        // Let's rely on loose comparison or convert if needed. 
+        // Based on existing code: `this.currentJornadaId = parseInt(e.target.value);`
+        // So we should parse.
+        const parsedJId = parseInt(jId) || jId;
+        const parsedMId = parseInt(mId) || mId;
+
+        this.currentJornadaId = parsedJId;
+        this.currentMemberId = parsedMId;
+
+        // Try to sync Dropdowns
+        if (this.selJornada) {
+            const opt = this.selJornada.querySelector(`option[value="${parsedJId}"]`);
+            if (opt) {
+                this.selJornada.value = parsedJId;
+            } else {
+                // If the jornada is not in the dropdown (e.g. inactive),
+                // we might want to add a temp option or just accept it won't match visually
+                console.warn('Jornada not in dropdown (maybe inactive)');
+                this.selJornada.value = ''; // Reset or keep previous?
+            }
+        }
+
+        if (this.selMember) {
+            const opt = this.selMember.querySelector(`option[value="${parsedMId}"]`);
+            if (opt) this.selMember.value = parsedMId;
+        }
+
+        this.loadForecast();
+
+        // Scroll to top to see the forecast
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+
+        // Highlight logic
+        this.container.style.transition = 'background-color 0.3s';
+        this.container.style.backgroundColor = '#fff8e1'; // Highlight flash
+        setTimeout(() => {
+            this.container.style.backgroundColor = 'transparent';
+        }, 500);
     }
 
     populateDropdowns() {
@@ -100,7 +215,11 @@ class PronosticoManager {
         const dateObj = this.parseDate(jornada.date);
         const closeDate = new Date(dateObj);
         closeDate.setDate(closeDate.getDate() + 2);
-        const isLocked = now > closeDate;
+        closeDate.setHours(23, 59, 59); // Close at end of Tuesday
+        const isLockedRef = now > closeDate;
+
+        // CORRECTION OVERRIDE: If Mode is Active, ignore lock
+        const isLocked = this.correctionMode ? false : isLockedRef;
 
         if (deadline) {
             const dStr = deadline.toLocaleDateString() + ' ' + deadline.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -109,10 +228,19 @@ class PronosticoManager {
                 `<span style="color:var(--primary-green)">Cierre: ${dStr}</span>`;
         }
 
-        if (isLocked) {
-            this.statusMsg.innerHTML = '<span class="badge-locked">🔒 JORNADA FINALIZADA - NO SE ADMITEN CAMBIOS</span>';
+        if (isLockedRef) {
+            if (this.correctionMode) {
+                this.statusMsg.innerHTML = '<span class="badge-late" style="border:2px solid var(--primary-orange); color:var(--primary-orange);">🛠️ EDITANDO JORNADA CERRADA (Modo Corrección)</span>';
+                this.container.style.border = "2px dashed var(--primary-orange)";
+            } else {
+                this.statusMsg.innerHTML = '<span class="badge-locked">🔒 JORNADA FINALIZADA - NO SE ADMITEN CAMBIOS</span>';
+                this.container.style.border = "none";
+            }
         } else if (isLate) {
             this.statusMsg.innerHTML = '<span class="badge-late">⚠️ FUERA DE PLAZO - SE MARCARÁ COMO RETRASADO</span>';
+            this.container.style.border = "none";
+        } else {
+            this.container.style.border = "none";
         }
 
         const existing = this.pronosticos.find(p => p.jId === this.currentJornadaId && p.mId === this.currentMemberId);
@@ -124,6 +252,10 @@ class PronosticoManager {
             row.className = 'pronostico-row';
 
             let disabledStr = isLocked ? 'style="pointer-events:none; opacity:0.6;"' : '';
+            if (disabledStr === '' && this.correctionMode && isLockedRef) {
+                // Visual cue that elements are unlocked specially
+                // No special disabledStr needed, just unlocked.
+            }
 
             // Pleno Restriction
             if (idx === 14) {
@@ -166,6 +298,15 @@ class PronosticoManager {
         this.container.classList.remove('hidden');
         if (!isLocked) {
             this.btnSave.style.display = 'block';
+            if (isLockedRef && this.correctionMode) {
+                this.btnSave.innerHTML = "🛠️ Guardar Corrección";
+                this.btnSave.style.backgroundColor = "var(--primary-orange)";
+            } else {
+                this.btnSave.innerHTML = "💾 Guardar Pronóstico";
+                this.btnSave.style.backgroundColor = "var(--primary-green)";
+            }
+        } else {
+            this.btnSave.style.display = 'none';
         }
     }
 
@@ -255,45 +396,174 @@ class PronosticoManager {
     }
 
     async saveForecast() {
-        if (!this.currentMemberId || !this.currentJornadaId) return;
+        try {
+            console.log("🔵 PASO 1: saveForecast iniciado");
+            console.log("IDs:", { mId: this.currentMemberId, jId: this.currentJornadaId });
 
-        const rows = this.container.querySelectorAll('.p-options');
-        const selection = [];
-        let missing = false;
-
-        rows.forEach((r, i) => {
-            // Skip Pleno check if disabled naturally? No, strict check on selection.
-            // If Pleno is disabled (opacity 0.3), we accept null.
-            const isPlenoDisabled = (i === 14 && r.style.opacity === '0.3');
-
-            const sel = r.querySelector('.selected');
-            if (sel) selection.push(sel.textContent);
-            else {
-                selection.push(null);
-                if (!isPlenoDisabled) missing = true;
+            if (!this.currentMemberId || !this.currentJornadaId) {
+                console.error("❌ Faltan IDs");
+                alert("Error: No parece haber un socio o jornada seleccionados válidos. Intenta refrescar o seleccionar de nuevo.");
+                return;
             }
-        });
 
-        if (missing) {
-            alert('Debes rellenar todos los resultados disponibles.');
+            console.log("🔵 PASO 2: Obteniendo selecciones");
+            const rows = this.container.querySelectorAll('.p-options');
+            console.log("Filas encontradas:", rows.length);
+
+            const selection = [];
+            let missing = false;
+
+            rows.forEach((r, i) => {
+                const isPlenoDisabled = (i === 14 && (
+                    r.style.pointerEvents === 'none' ||
+                    r.style.opacity === '0.3' ||
+                    parseFloat(window.getComputedStyle(r).opacity) < 0.5
+                ));
+
+                const sel = r.querySelector('.selected');
+                if (sel) selection.push(sel.textContent);
+                else {
+                    selection.push(null);
+                    if (!isPlenoDisabled) missing = true;
+                }
+            });
+
+            console.log("🔵 PASO 3: Selección:", selection);
+            console.log("¿Falta algo?", missing);
+
+            if (missing) {
+                alert('Debes rellenar todos los resultados disponibles.');
+                return;
+            }
+
+            console.log("🔵 PASO 4: Buscando jornada");
+            const jornada = this.jornadas.find(j => j.id == this.currentJornadaId);
+            if (!jornada) {
+                alert("Error: No se encuentra la jornada seleccionada.");
+                return;
+            }
+            console.log("Jornada encontrada:", jornada.number);
+
+            console.log("🔵 PASO 5: Calculando fechas");
+            const deadline = this.calculateDeadline(jornada.date);
+            const dateObj = this.parseDate(jornada.date);
+            if (!dateObj) {
+                alert("Error en el formato de fecha de la jornada.");
+                return;
+            }
+
+            const closeDate = new Date(dateObj);
+            closeDate.setDate(closeDate.getDate() + 2);
+            closeDate.setHours(23, 59, 59);
+
+            const now = new Date();
+            const isLockedRef = now > closeDate;
+            const isLate = now > deadline;
+
+            console.log("🔵 PASO 6: Estado de bloqueo");
+            console.log({ isLockedRef, isLate, correctionMode: this.correctionMode });
+
+            const id = `${this.currentJornadaId}_${this.currentMemberId}`;
+            const record = {
+                id: id,
+                jId: this.currentJornadaId,
+                mId: this.currentMemberId,
+                selection: selection,
+                timestamp: new Date().toISOString(),
+                late: isLate
+            };
+
+            console.log("🔵 PASO 7: Verificando si necesita auditoría");
+            console.log("Condición:", `isLockedRef=${isLockedRef} && correctionMode=${this.correctionMode}`);
+
+            // If LOCKED and CORRECTION MODE -> Audit Flow
+            if (isLockedRef && this.correctionMode) {
+                console.log("🟢 ABRIENDO MODAL DE AUDITORÍA");
+                this.pendingSaveData = record;
+                this.openAuditModal(isLate);
+                return;
+            }
+
+            console.log("🔵 PASO 8: Guardado normal (sin auditoría)");
+            await this.performFinalSave(record, isLate);
+
+        } catch (error) {
+            console.error("❌ ERROR CAPTURADO:", error);
+            alert("Error inesperado al guardar: " + error.message);
+        }
+    }
+
+    openAuditModal(isLateCurrent) {
+        console.log("🟡 openAuditModal llamado");
+        console.log("Modal element:", this.auditModal);
+
+        if (!this.auditModal) {
+            console.error("❌ auditModal es null!");
+            alert("Error: No se encuentra el modal de auditoría en la página.");
             return;
         }
 
-        const jornada = this.jornadas.find(j => j.id === this.currentJornadaId);
-        const deadline = this.calculateDeadline(jornada.date);
-        const isLate = new Date() > deadline;
+        // Bloquear scroll del body
+        document.body.style.overflow = 'hidden';
 
-        const id = `${this.currentJornadaId}_${this.currentMemberId}`;
-        const record = {
-            id: id,
-            jId: this.currentJornadaId,
-            mId: this.currentMemberId,
-            selection: selection,
+        // Mostrar modal
+        this.auditModal.style.display = 'flex';
+        this.auditReason.value = '';
+        this.auditLateCheck.checked = isLateCurrent;
+
+        // Forzar que esté en el viewport
+        this.auditModal.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+        // Focus en el textarea
+        setTimeout(() => {
+            if (this.auditReason) this.auditReason.focus();
+        }, 100);
+
+        console.log("✅ Modal mostrado (display=flex)");
+    }
+
+    async executeAuditSave() {
+        if (!this.pendingSaveData) return;
+
+        const reason = this.auditReason.value.trim();
+        if (!reason) {
+            alert('Por favor, indica un motivo para la corrección.');
+            return;
+        }
+
+        const isForceLate = this.auditLateCheck.checked;
+
+        // 1. Prepare Log Entry
+        const existing = this.pronosticos.find(p => p.id === this.pendingSaveData.id);
+        const logEntry = {
             timestamp: new Date().toISOString(),
-            late: isLate
+            type: 'CORRECTION',
+            memberId: this.currentMemberId,
+            jornadaId: this.currentJornadaId,
+            oldSelection: existing ? existing.selection : null,
+            newSelection: this.pendingSaveData.selection,
+            reason: reason,
+            forcedLate: isForceLate
         };
 
-        const idx = this.pronosticos.findIndex(p => p.id === id);
+        // 2. Save Log
+        if (window.DataService) {
+            await window.DataService.save('modification_logs', logEntry);
+        }
+
+        // 3. Update Record with Forced Late Status
+        this.pendingSaveData.late = isForceLate;
+
+        // 4. Save Record
+        await this.performFinalSave(this.pendingSaveData, isForceLate, true);
+
+        this.auditModal.style.display = 'none';
+        document.body.style.overflow = ''; // Restaurar scroll
+        this.pendingSaveData = null;
+    }
+
+    async performFinalSave(record, isLate, isCorrection = false) {
+        const idx = this.pronosticos.findIndex(p => p.id === record.id);
         if (idx > -1) {
             this.pronosticos[idx] = { ...this.pronosticos[idx], ...record };
         } else {
@@ -302,13 +572,19 @@ class PronosticoManager {
 
         await window.DataService.save('pronosticos', record);
 
-        // Show random Maula phrase
-        if (typeof FRASES_MAULA !== 'undefined' && FRASES_MAULA.length > 0) {
-            const randomPhrase = FRASES_MAULA[Math.floor(Math.random() * FRASES_MAULA.length)];
-            alert('PRONÓSTICO GUARDADO CORRECTAMENTE\n\n' + randomPhrase);
+        if (isCorrection) {
+            alert('✅ CORRECCIÓN APLICADA Y REGISTRADA CORRECTAMENTE');
         } else {
-            alert('Pronóstico guardado correctamente' + (isLate ? ' (CON RETRASO)' : '') + '.');
+            // Show random Maula phrase
+            if (typeof FRASES_MAULA !== 'undefined' && FRASES_MAULA.length > 0) {
+                const randomPhrase = FRASES_MAULA[Math.floor(Math.random() * FRASES_MAULA.length)];
+                alert('PRONÓSTICO GUARDADO CORRECTAMENTE\n\n' + randomPhrase);
+            } else {
+                alert('Pronóstico guardado correctamente' + (isLate ? ' (CON RETRASO)' : '') + '.');
+            }
         }
+
+        this.renderSummaryTable(); // Refresh summary
     }
 
     calculateDeadline(dateStr) {
@@ -339,6 +615,110 @@ class PronosticoManager {
         };
 
         return new Date(year, months[monthStr] || 0, day);
+    }
+
+    renderSummaryTable() {
+        if (!this.summaryTable) return;
+
+        const thead = this.summaryTable.querySelector('thead');
+        const tbody = this.summaryTable.querySelector('tbody');
+        thead.innerHTML = '';
+        tbody.innerHTML = '';
+
+        // 1. Sort Members alphabetically
+        const sortedMembers = [...this.members].sort((a, b) => a.name.localeCompare(b.name));
+
+        // 2. Build Header
+        const headerRow = document.createElement('tr');
+        // Sticky first column header
+        headerRow.innerHTML = '<th style="position:sticky; left:0; z-index:10; padding:1rem; background:var(--card-bg); border-bottom:2px solid var(--input-border); min-width:120px;">Jornada</th>';
+
+        sortedMembers.forEach((m, index) => {
+            // Zebra striping for columns in header too
+            const bg = index % 2 !== 0 ? 'background-color: var(--pastel-bg);' : 'background-color: var(--card-bg);';
+            const color = 'color: var(--text-main);';
+            headerRow.innerHTML += `<th style="padding:1rem; min-width:140px; text-align:center; border-bottom:2px solid var(--input-border); ${bg} ${color}">${m.name}</th>`;
+        });
+        thead.appendChild(headerRow);
+
+        // 3. Sort Jornadas (descending) & Filter empty ones
+        let sortedJornadas = [...this.jornadas].sort((a, b) => b.number - a.number);
+
+        // Filter: Keep only jornadas that have at least one forecast
+        sortedJornadas = sortedJornadas.filter(j => {
+            return this.pronosticos.some(p => p.jId === j.id && p.selection && p.selection.length > 0);
+        });
+
+        if (sortedJornadas.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="100%" style="padding:2rem;">No hay pronósticos registrados aún.</td></tr>';
+            return;
+        }
+
+        // 4. Build Rows
+        sortedJornadas.forEach(j => {
+            const row = document.createElement('tr');
+
+            // Format date with Year: "dd/mm/yyyy"
+            let dateFormatted = j.date;
+            try {
+                // Try parsing our standard format
+                const d = this.parseDate(j.date);
+                if (d) {
+                    dateFormatted = d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                }
+            } catch (e) { }
+
+            // First col sticky
+            row.innerHTML = `<td style="font-weight:bold; position:sticky; left:0; background:var(--card-bg); z-index:5; border-right:2px solid var(--input-border); padding:0.8rem;">
+                <div style="font-size:1.1em; color:var(--primary-blue);">J${j.number}</div>
+                <div style="font-size:0.75em; color:var(--text-secondary); margin-top:4px;">${dateFormatted}</div>
+            </td>`;
+
+            sortedMembers.forEach((m, index) => {
+                const p = this.pronosticos.find(pr => pr.jId === j.id && pr.mId === m.id);
+
+                // Zebra striping logic: Alternate column backgrounds
+                // We use inline styles to force it regardless of theme variables (or using theme vars)
+                let colBg = index % 2 !== 0 ? 'background-color: var(--pastel-bg);' : 'background-color: transparent;';
+
+                let cellContent = '-';
+                let cellStyle = `text-align:center; vertical-align:middle; padding:0.6rem; border-bottom:1px solid var(--input-border); ${colBg} cursor:pointer; transition:background-color 0.2s;`;
+                let textStyle = '';
+
+                // Add hover effect class would be better, but inline we can use onmouseover
+                // Let's rely on class .summary-cell for listener and simple CSS hover if possible
+                // We'll add the class 'summary-cell'
+
+                if (p && p.selection) {
+                    // Extract only first 14 matches (exclude Pleno/15)
+                    const selection14 = p.selection.slice(0, 14);
+
+                    // Create compact string: "1X2111..."
+                    // Convert nulls to "-"
+                    const summary = selection14.map(s => s || '-').join('');
+
+                    // Status Check
+                    if (p.late) {
+                        // Late: Orange accent
+                        textStyle = 'color: #e65100; font-weight:bold;';
+                        // Optional: maybe a small warning icon but user asked for simple line
+                        cellContent = `<div style="font-family:monospace; font-size:0.95rem; letter-spacing:2px; white-space:nowrap; ${textStyle}" title="Enviado con retraso">${summary}</div>`;
+                    } else {
+                        // OK: Normal text (or green)
+                        textStyle = 'color: var(--text-main); font-weight:500;';
+                        cellContent = `<div style="font-family:monospace; font-size:0.95rem; letter-spacing:2px; white-space:nowrap; ${textStyle}">${summary}</div>`;
+                    }
+                } else {
+                    // Missing
+                    textStyle = 'color: #e57373; font-weight:bold;';
+                    cellContent = `<span style="${textStyle}">-</span>`;
+                }
+
+                row.innerHTML += `<td class="summary-cell" data-jid="${j.id}" data-mid="${m.id}" style="${cellStyle}" onmouseover="this.style.backgroundColor='#e3f2fd'" onmouseout="this.style.backgroundColor='${colBg.includes('transparent') ? 'transparent' : 'var(--pastel-bg)'}'">${cellContent}</td>`;
+            });
+
+            tbody.appendChild(row);
+        });
     }
 }
 
