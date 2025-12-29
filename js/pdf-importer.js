@@ -183,11 +183,11 @@ class PDFImporter {
                     home = home.replace(/^\d+[.,]\s*/, '');
 
                     // Apply name normalization
-                    home = this.fixTeamName(home);
-                    away = this.fixTeamName(away);
+                    // home = this.fixTeamName(home);
+                    // away = this.fixTeamName(away);
 
                     // Validate length to avoid noise
-                    if (home.length > 2 && away.length > 2 && !this.isDateString(home)) {
+                    if (home.length > 2 && away.length > 2 && !AppUtils.isDateString(home)) {
                         matches.push({ position: m, home, away, result: '' });
                     }
                 }
@@ -197,11 +197,10 @@ class PDFImporter {
             const p15Regex = /(?:Pleno al 15|P15)\s*([A-Za-zñÑáéíóúÁÉÍÓÚ\s.]+?)\s*[-–]\s*([A-Za-zñÑáéíóúÁÉÍÓÚ\s.]+)/i;
             const p15Found = rawText.match(p15Regex);
             if (p15Found) {
-                let pHome = this.fixTeamName(p15Found[1]);
-                let pAway = this.fixTeamName(p15Found[2]);
+                let pHome = p15Found[1].trim();
+                let pAway = p15Found[2].trim();
 
                 // Specific cleanup for P15 "Jornada" artifacts mentioned by user
-                // Often 'Jornada' appears at end of Away team in P15 because it's next block
                 pAway = pAway.replace(/\s*Jornada.*$/i, '');
 
                 matches.push({ position: 15, home: pHome, away: pAway, result: '' });
@@ -283,13 +282,11 @@ class PDFImporter {
             const existing = this.jornadas.find(j => j.number === nj.number && j.season === nj.season);
 
             // 1. Date Logic
-            let finalDate = nj.date; // Default to PDF date
+            let finalDate = nj.date;
             if (existing && existing.date && existing.date !== 'Por definir') {
                 finalDate = existing.date; // Keep existing date if valid
-            } else {
-                // Try to correct date to Sunday if it looks like a range "3-4" or "27-28"
-                finalDate = this.ensureSundayDate(nj.date);
             }
+            // Note: date is already cleaned in processExtractedData via AppUtils.extractSundayFromRange
 
             const finalJornada = {
                 id: existing ? existing.id : Date.now() + nj.number,
@@ -305,31 +302,37 @@ class PDFImporter {
         alert('Jornadas importadas correctamente.');
     }
 
-    ensureSundayDate(dateStr) {
-        // Simple heuristic: if date has range like "3-4 de enero", pick the second one (usually Sunday)
-        if (dateStr.match(/\d+[-–]\d+/)) {
-            // It's a range. Usually Sat-Sun or Tue-Wed. 
-            // If Sat-Sun, the second number is Sunday.
-            // Transform "3-4 de enero" -> "4 de enero"
-            // Transform "27-28 de diciembre" -> "28 de diciembre"
+    processExtractedData(jornadasRaw) {
+        const valid = [];
 
-            return dateStr.replace(/(\d+)[-–](\d+)/, '$2');
-        }
-        return dateStr;
-    }
+        jornadasRaw.forEach(j => {
+            let firstDivCount = 0;
+            j.matches.forEach(m => {
+                // Formatting via Utils
+                m.home = AppUtils.formatTeamName(m.home);
+                m.away = AppUtils.formatTeamName(m.away);
 
-    fixTeamName(name) {
-        if (!name) return '';
-        // Lowercase first
-        let fixed = name.toLowerCase().trim();
+                if (AppUtils.isLaLigaTeam(m.home) || AppUtils.isLaLigaTeam(m.away)) {
+                    firstDivCount++;
+                }
+            });
 
-        // Remove trailing " P" or " Jornada" artifacts (specific req 2 & 3)
-        // These often appear when PDF text capture overruns
-        fixed = fixed.replace(/\s+p$/, '').replace(/\s+jornada$/, '');
+            // If at least 3 matches involve 1st div teams, it's likely a La Liga journey.
+            if (firstDivCount < 3) return;
 
-        // Capitalize each word, respecting dots
-        // "at. madrid" -> "At. Madrid"
-        return fixed.replace(/(?:^|\s|\.)\S/g, function (a) { return a.toUpperCase(); });
+            // Date Cleaning
+            let dateClean = j.date.replace(/[\n\r]+/g, ' ').trim();
+            dateClean = AppUtils.extractSundayFromRange(dateClean);
+
+            valid.push({
+                number: j.number,
+                date: dateClean,
+                matches: j.matches.slice(0, 15), // Ensure max 15
+                season: '2025-2026'
+            });
+        });
+
+        return valid;
     }
 
 }

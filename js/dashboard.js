@@ -35,7 +35,9 @@ class DashboardManager {
         // A jornada is considered played if it has matches AND first match has result AND it is a Sunday.
         const playedJornadas = this.jornadas.filter(j => {
             const hasResult = j.matches && j.matches[0] && j.matches[0].result !== '';
-            return hasResult && this.isValidJornadaDate(j.date);
+            const d = AppUtils.parseDate(j.date);
+            const isValidDate = d && AppUtils.isSunday(d);
+            return hasResult && isValidDate;
         }).sort((a, b) => a.number - b.number);
 
         const playedCount = playedJornadas.length;
@@ -59,41 +61,33 @@ class DashboardManager {
 
             this.members.forEach(member => {
                 const p = this.pronosticos.find(pr => (pr.jornadaId === jornada.id || pr.jId === jornada.id) && (pr.memberId === member.id || pr.mId === member.id));
-                let hits = -1; // Default 'Not Played'
+
+                let hits = -1;
+                let points = 0;
+                let bonus = 0;
                 let isLate = false;
                 let hasPronostico = false;
 
                 if (p) {
                     hasPronostico = true;
-                    hits = 0; // Start counting from 0
                     isLate = p.late || false;
+                    const isPardoned = p.pardoned || false;
                     const sel = p.selection || p.forecasts || [];
+                    const officialResults = jornada.matches ? jornada.matches.map(m => m.result) : [];
 
-                    if (jornada.matches) {
-                        jornada.matches.forEach((match, idx) => {
-                            if (match.result && sel[idx] === match.result) hits++;
-                        });
+                    let ev = ScoringSystem.evaluateForecast(sel, officialResults);
+
+                    if (isLate && !isPardoned) {
+                        hits = 0;
+                        points = ScoringSystem.calculateScore(0);
+                        bonus = points;
+                    } else {
+                        hits = ev.hits;
+                        points = ev.points;
+                        bonus = ev.bonus;
                     }
-                }
-
-                // HARDCODED SCORING RULES
-                let points = 0;
-                let bonus = 0;
-
-                if (hits !== -1) {
-                    if (hits >= 15) bonus = 30;
-                    else if (hits === 14) bonus = 30;
-                    else if (hits === 13) bonus = 15;
-                    else if (hits === 12) bonus = 10;
-                    else if (hits === 11) bonus = 5;
-                    else if (hits === 10) bonus = 3;
-                    else if (hits === 3) bonus = -1;
-                    else if (hits === 2) bonus = -2;
-                    else if (hits === 1) bonus = -3;
-                    else if (hits === 0) bonus = -5;
-
-                    points = hits + bonus;
                 } else {
+                    hits = -1;
                     points = 0;
                 }
 
@@ -161,7 +155,7 @@ class DashboardManager {
 
         let deadlineHtml = "";
         if (nextJornadaData && nextJornadaData.date) {
-            const matchDate = this.parseDateString(nextJornadaData.date);
+            const matchDate = AppUtils.parseDate(nextJornadaData.date);
 
             if (matchDate) {
                 // Deadline: Thursday 17:00 implies -3 days from Sunday
@@ -291,49 +285,19 @@ class DashboardManager {
 
     getNextJornadaData() {
         return this.jornadas
-            .filter(j => j.active && this.isValidJornadaDate(j.date))
+            .filter(j => {
+                if (!j.active) return false;
+                const d = AppUtils.parseDate(j.date);
+                return d && AppUtils.isSunday(d);
+            })
             .sort((a, b) => a.number - b.number)
             .find(j => {
                 const filled = j.matches ? j.matches.filter(m => m.result && m.result !== '').length : 0;
                 return filled < 15;
             });
     }
-
-    // Helper: Parse date string to Date object
-    parseDateString(dateStr) {
-        if (!dateStr) return null;
-        try {
-            const lowerDate = dateStr.toLowerCase();
-            if (lowerDate.includes('/')) {
-                const parts = lowerDate.split('/');
-                if (parts.length === 3) {
-                    return new Date(parts[2], parts[1] - 1, parts[0]);
-                }
-            } else {
-                const months = {
-                    'enero': 0, 'febrero': 1, 'marzo': 2, 'abril': 3, 'mayo': 4, 'junio': 5,
-                    'julio': 6, 'agosto': 7, 'septiembre': 8, 'octubre': 9, 'noviembre': 10, 'diciembre': 11
-                };
-                const clean = lowerDate.replace(/\(.*\)/, '').replace(/ de /g, ' ').trim();
-                const parts = clean.split(' ');
-                if (parts.length >= 3) {
-                    const day = parseInt(parts[0]);
-                    const year = parseInt(parts[parts.length - 1]);
-                    const monthStr = parts[1];
-                    if (months.hasOwnProperty(monthStr)) {
-                        return new Date(year, months[monthStr], day);
-                    }
-                }
-            }
-        } catch (e) { return null; }
-        return null;
-    }
-
-    isValidJornadaDate(dateStr) {
-        const d = this.parseDateString(dateStr);
-        if (!d || isNaN(d.getTime())) return false;
-        return d.getDay() === 0; // 0 = Sunday
-    }
 }
 
-new DashboardManager();
+document.addEventListener('DOMContentLoaded', () => {
+    new DashboardManager();
+});

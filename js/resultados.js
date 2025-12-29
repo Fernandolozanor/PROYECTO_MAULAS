@@ -26,19 +26,10 @@ class ResultsManager {
         const finishedJornadas = this.jornadas.filter(j => {
             // Filter: Only show jornadas on Sunday
             if (j.date) {
-                const clean = j.date.replace(/\(.*\)/, '').replace(/ de /g, ' ').trim();
-                const parts = clean.split(' ');
-                if (parts.length >= 3) {
-                    const day = parseInt(parts[0]);
-                    const year = parseInt(parts[parts.length - 1]);
-                    const monthStr = parts[1].toLowerCase();
-                    const months = {
-                        'enero': 0, 'febrero': 1, 'marzo': 2, 'abril': 3, 'mayo': 4, 'junio': 5,
-                        'julio': 6, 'agosto': 7, 'septiembre': 8, 'octubre': 9, 'noviembre': 10, 'diciembre': 11
-                    };
-                    const dateObj = new Date(year, months[monthStr] || 0, day);
-                    if (dateObj.getDay() !== 0) return false; // 0 = Sunday
-                }
+                const dateObj = AppUtils.parseDate(j.date);
+                // Si la fecha es inválida o NO es domingo, la ignoramos para resultados finales
+                // (Ojo: Si quieres permitir jornadas entre semana, quita isSunday)
+                if (!dateObj || !AppUtils.isSunday(dateObj)) return false;
             }
             return j.matches && j.matches[0] && j.matches[0].result !== '';
         }).sort((a, b) => b.number - a.number);
@@ -73,6 +64,8 @@ class ResultsManager {
                 const p = this.pronosticos.find(pred => pred.jId === j.id && pred.mId === m.id);
 
                 let hits = 0;
+                let points = 0;
+                let bonus = 0;
                 let played = false;
                 let isLate = false;
                 let isPardoned = false; // Default false. In future, read from 'p.pardoned'
@@ -82,50 +75,23 @@ class ResultsManager {
                     isLate = p.late || false;
                     isPardoned = p.pardoned || false;
 
-                    // Late Logic: If late and NOT pardoned -> Hits = 0
+                    let ev = ScoringSystem.evaluateForecast(p.selection, officialResults);
+
+                    // Late Logic: If late and NOT pardoned -> Hits = 0 -> Recalculate Score
                     if (isLate && !isPardoned) {
                         hits = 0;
+                        points = ScoringSystem.calculateScore(0);
+                        bonus = points; // points - hits(0)
                     } else {
-                        // Calc hits
-                        p.selection.forEach((sel, idx) => {
-                            if (sel && sel === officialResults[idx]) hits++;
-                        });
+                        hits = ev.hits;
+                        points = ev.points;
+                        bonus = ev.bonus;
                     }
                 } else {
-                    // Not played -> 0 hits? Or "-"
-                    // If not played, usually 0 points or excluded. 
-                    // Given "Total de Acumulado", assume treated as 0 hits (penalty) or neutral.
-                    // Risk: If I treat as -5, people will be angry if they joined late.
-                    // But if I treat as 0, it's better than 0 hits (-5).
-                    // I will mark as '-' (No participation) and Score 0.
+                    // Not played
                     hits = -1; // Flag for 'Not Played'
-                }
-
-                // Score Logic
-                let points = 0;
-                let bonus = 0;
-
-                if (hits === -1) {
                     points = 0;
                     bonus = 0;
-                } else {
-                    // Base Hits
-                    // Rule 1: 4-9 hits -> Sum hits.
-                    // Rule 2-5: Penalties.
-                    // Rule 6-10: Bonuses.
-
-                    if (hits >= 14) bonus = 30;
-                    else if (hits === 13) bonus = 15;
-                    else if (hits === 12) bonus = 10;
-                    else if (hits === 11) bonus = 5;
-                    else if (hits === 10) bonus = 3;
-                    else if (hits >= 4) bonus = 0;
-                    else if (hits === 3) bonus = -1;
-                    else if (hits === 2) bonus = -2;
-                    else if (hits === 1) bonus = -3;
-                    else if (hits === 0) bonus = -5;
-
-                    points = hits + bonus;
                 }
 
                 // Store
@@ -289,5 +255,6 @@ class ResultsManager {
     }
 }
 
-const app = new ResultsManager();
-window.app = app;
+document.addEventListener('DOMContentLoaded', () => {
+    window.app = new ResultsManager();
+});

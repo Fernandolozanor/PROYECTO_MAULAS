@@ -264,12 +264,6 @@ class ResumenManager {
         });
     }
 
-    getTeamLogo(teamName) {
-        if (!teamName) return '';
-        // Filename matches team name, .jpg
-        // e.g. "Real Madrid" -> "escudos/Real Madrid.jpg"
-        return `escudos/${teamName}.jpg`;
-    }
 
     showPointDetail(memberName, pointData) {
         let detailSection = document.getElementById('chart-detail-section');
@@ -317,8 +311,8 @@ class ResumenManager {
                 const icon = isHit ? '✅' : (userVal !== '-' ? '❌' : '⚪');
                 const rowBg = isHit ? '#e8f5e9' : 'transparent';
 
-                const homeLogo = `<img src="${this.getTeamLogo(m.home)}" onerror="this.style.display='none'" style="height:20px; vertical-align:middle; margin-right:4px;">`;
-                const awayLogo = `<img src="${this.getTeamLogo(m.away)}" onerror="this.style.display='none'" style="height:20px; vertical-align:middle; margin-left:4px;">`;
+                const homeLogo = `<img src="${AppUtils.getTeamLogo(m.home)}" onerror="this.style.display='none'" style="height:20px; vertical-align:middle; margin-right:4px;">`;
+                const awayLogo = `<img src="${AppUtils.getTeamLogo(m.away)}" onerror="this.style.display='none'" style="height:20px; vertical-align:middle; margin-left:4px;">`;
 
                 matchesHtml += `
                     <tr style="border-bottom:1px solid #eee; background-color:${rowBg};">
@@ -370,8 +364,6 @@ class ResumenManager {
     }
 }
 
-const app = new ResumenManager();
-// Wait for DOM to select defaults
-
-
-window.app = app;
+document.addEventListener('DOMContentLoaded', () => {
+    window.app = new ResumenManager();
+});

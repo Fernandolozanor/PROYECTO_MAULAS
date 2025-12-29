@@ -315,7 +315,8 @@ class RSSImporter {
      */
     findMatchingJornada(rssDateStr) {
         // Parse RSS date: "21 diciembre 2025"
-        const rssDate = this.parseSpanishDate(rssDateStr);
+        const rssDate = AppUtils.parseDate(rssDateStr);
+
         if (!rssDate) {
             console.log(`DEBUG: Could not parse RSS date: "${rssDateStr}"`);
             return null;
@@ -325,7 +326,7 @@ class RSSImporter {
 
         // Find jornada with matching date
         for (const jornada of this.jornadas) {
-            const jornadaDate = this.parseSpanishDate(jornada.date);
+            const jornadaDate = AppUtils.parseDate(jornada.date);
             if (jornadaDate) {
                 const matches = this.isSameDate(rssDate, jornadaDate);
                 if (matches) {
@@ -336,50 +337,6 @@ class RSSImporter {
         }
 
         console.log(`DEBUG: ✗ NO MATCH for RSS date "${rssDateStr}"`);
-        return null;
-    }
-
-    /**
-     * Parse Spanish date format: "21 diciembre 2025" or "21/12/2025"
-     */
-    parseSpanishDate(dateStr) {
-        if (!dateStr) return null;
-
-        // Try dd/mm/yyyy format first
-        if (dateStr.includes('/')) {
-            const parts = dateStr.split('/');
-            if (parts.length === 3) {
-                const day = parseInt(parts[0]);
-                const month = parseInt(parts[1]) - 1; // Month is 0-indexed
-                const year = parseInt(parts[2]);
-
-                if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
-                    return new Date(year, month, day);
-                }
-            }
-        }
-
-        // Try Spanish month name format: "21 diciembre 2025"
-        const months = {
-            'enero': 0, 'febrero': 1, 'marzo': 2, 'abril': 3, 'mayo': 4, 'junio': 5,
-            'julio': 6, 'agosto': 7, 'septiembre': 8, 'octubre': 9, 'noviembre': 10, 'diciembre': 11
-        };
-
-        // Remove all "de" and normalize spaces
-        let clean = dateStr.toLowerCase().trim();
-        clean = clean.replace(/\bde\b/g, '').replace(/\s+/g, ' ').trim();
-        const parts = clean.split(' ');
-
-        if (parts.length >= 3) {
-            const day = parseInt(parts[0]);
-            const monthStr = parts[1];
-            const year = parseInt(parts[parts.length - 1]);
-
-            if (months.hasOwnProperty(monthStr) && !isNaN(day) && !isNaN(year)) {
-                return new Date(year, months[monthStr], day);
-            }
-        }
-
         return null;
     }
 
@@ -406,29 +363,14 @@ class RSSImporter {
             const dbMatch = dbJornada.matches[i];
             const rssMatch = rssJornada.matches[i];
 
-            if (this.normalizeTeamName(dbMatch.home) === this.normalizeTeamName(rssMatch.home) &&
-                this.normalizeTeamName(dbMatch.away) === this.normalizeTeamName(rssMatch.away)) {
+            if (AppUtils.normalizeName(dbMatch.home) === AppUtils.normalizeName(rssMatch.home) &&
+                AppUtils.normalizeName(dbMatch.away) === AppUtils.normalizeName(rssMatch.away)) {
                 matchCount++;
             }
         }
 
         // Consider it a match if at least 70% of teams match
         return (matchCount / totalMatches) >= 0.7;
-    }
-
-    /**
-     * Normalize team name for comparison
-     */
-    normalizeTeamName(name) {
-        if (!name) return '';
-        return name.toLowerCase()
-            .replace(/\s+/g, ' ')
-            .replace(/á/g, 'a')
-            .replace(/é/g, 'e')
-            .replace(/í/g, 'i')
-            .replace(/ó/g, 'o')
-            .replace(/ú/g, 'u')
-            .trim();
     }
 
     /**

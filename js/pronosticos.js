@@ -176,9 +176,9 @@ class PronosticoManager {
             if (!j.active) return;
 
             // Filter: Only show jornadas on Sunday
-            const dateObj = this.parseDate(j.date);
+            const dateObj = AppUtils.parseDate(j.date);
             if (!dateObj) return;
-            if (dateObj.getDay() !== 0) return; // 0 = Sunday
+            if (!AppUtils.isSunday(dateObj)) return; // 0 = Sunday
 
             // Locked check
 
@@ -212,7 +212,7 @@ class PronosticoManager {
         const now = new Date();
         const isLate = now > deadline;
 
-        const dateObj = this.parseDate(jornada.date);
+        const dateObj = AppUtils.parseDate(jornada.date);
         const closeDate = new Date(dateObj);
         closeDate.setDate(closeDate.getDate() + 2);
         closeDate.setHours(23, 59, 59); // Close at end of Tuesday
@@ -254,7 +254,6 @@ class PronosticoManager {
             let disabledStr = isLocked ? 'style="pointer-events:none; opacity:0.6;"' : '';
             if (disabledStr === '' && this.correctionMode && isLockedRef) {
                 // Visual cue that elements are unlocked specially
-                // No special disabledStr needed, just unlocked.
             }
 
             // Pleno Restriction
@@ -267,8 +266,8 @@ class PronosticoManager {
             }
 
             const val = currentSelections[idx];
-            const homeLogo = this.getTeamLogo(match.home);
-            const awayLogo = this.getTeamLogo(match.away);
+            const homeLogo = AppUtils.getTeamLogo(match.home);
+            const awayLogo = AppUtils.getTeamLogo(match.away);
 
             row.innerHTML = `
                 <div class="p-match-info">
@@ -308,85 +307,6 @@ class PronosticoManager {
         } else {
             this.btnSave.style.display = 'none';
         }
-    }
-
-    getTeamLogo(teamName) {
-        if (!teamName) return '';
-
-        // Normalize name for mapping
-        const t = teamName.toLowerCase().trim();
-
-        const map = {
-            'alavés': 'escudos/primera/Escudo-Deportivo-Alavés-S.A.D..jpg',
-            'alaves': 'escudos/primera/Escudo-Deportivo-Alavés-S.A.D..jpg',
-            'almeria': 'escudos/segunda/ALMERIA.jpg',
-            'almería': 'escudos/segunda/ALMERIA.jpg',
-            'athletic club': 'escudos/primera/ATHLETIC_BILBAO-150x150.jpg',
-            'athletic': 'escudos/primera/ATHLETIC_BILBAO-150x150.jpg',
-            'at. madrid': 'escudos/primera/ATLÉTICO_MADRID-150x150.jpg',
-            'atlético de madrid': 'escudos/primera/ATLÉTICO_MADRID-150x150.jpg',
-            'atlético': 'escudos/primera/ATLÉTICO_MADRID-150x150.jpg',
-            'barcelona': 'escudos/primera/BARCELONA-150x150.jpg',
-            'betis': 'escudos/primera/REAL-BETIS-150x150.jpg',
-            'real betis': 'escudos/primera/REAL-BETIS-150x150.jpg',
-            'celta': 'escudos/primera/CELTA-150x150.jpg',
-            'celta de vigo': 'escudos/primera/CELTA-150x150.jpg',
-            'elche': 'escudos/primera/ELCHE-150x150.jpg',
-            'espanyol': 'escudos/primera/ESPANYOL-150x150.jpg',
-            'getafe': 'escudos/primera/GETAFE-150x150.jpg',
-            'girona': 'escudos/primera/Escudo-Girona-FC-2022.jpg',
-            'las palmas': 'escudos/segunda/LAS-PALMAS-150x150.jpg',
-            'levante': 'escudos/primera/LEVANTE-150x150.jpg',
-            'mallorca': 'escudos/primera/MALLORCA-150x150.jpg',
-            'osasuna': 'escudos/primera/OSASUNA-150x150.jpg',
-            'rayo vallecano': 'escudos/primera/RAYO-VALLECANO-150x150.jpg',
-            'rayo': 'escudos/primera/RAYO-VALLECANO-150x150.jpg',
-            'real madrid': 'escudos/primera/REAL-MADRID-150x150.jpg',
-            'real sociedad': 'escudos/primera/REAL-SOCIEDAD-150x150.jpg',
-            'sevilla': 'escudos/primera/SEVILLA-150x150.jpg',
-            'valencia': 'escudos/primera/VALENCIA-150x150.jpg',
-            'valladolid': 'escudos/segunda/Escudo-Real-Valladolid-CF.jpg',
-            'real valladolid': 'escudos/segunda/Escudo-Real-Valladolid-CF.jpg',
-            'villarreal': 'escudos/primera/VILLARREAL-150x150.jpg',
-
-            // Segunda
-            'albacete': 'escudos/segunda/ALBACETE-150x150.jpg',
-            'andorra': 'escudos/segunda/ANDORRA-150x150.jpg',
-            'burgos': 'escudos/segunda/BURGOS-150x150.jpg',
-            'cádiz': 'escudos/segunda/CADIZ-150x150.jpg',
-            'cadiz': 'escudos/segunda/CADIZ-150x150.jpg',
-            'castellón': 'escudos/segunda/CASTELLON-150x150.jpg',
-            'castellon': 'escudos/segunda/CASTELLON-150x150.jpg',
-            'ceuta': 'escudos/segunda/Escudo-AgD-Ceuta-FC-150x150.jpg',
-            'córdoba': 'escudos/segunda/CORDOBA-150x150.jpg',
-            'cordoba': 'escudos/segunda/CORDOBA-150x150.jpg',
-            'cultural leonesa': 'escudos/segunda/CULTURAL-150x150.jpg',
-            'cultural': 'escudos/segunda/CULTURAL-150x150.jpg',
-            'deportivo': 'escudos/segunda/DEPORTIVO-150x150.jpg',
-            'depor': 'escudos/segunda/DEPORTIVO-150x150.jpg',
-            'eibar': 'escudos/segunda/EIBAR-150x150.jpg',
-            'granada': 'escudos/segunda/GRANADA-150x150.jpg',
-            'huesca': 'escudos/segunda/HUESCA-150x150.jpg',
-            'leganés': 'escudos/segunda/LEGANES-150x150.jpg',
-            'leganes': 'escudos/segunda/LEGANES-150x150.jpg',
-            'málaga': 'escudos/segunda/MALAGA-150x150.jpg',
-            'malaga': 'escudos/segunda/MALAGA-150x150.jpg',
-            'mirandés': 'escudos/segunda/MIRANDES-150x150.jpg',
-            'mirandes': 'escudos/segunda/MIRANDES-150x150.jpg',
-            'racing santander': 'escudos/segunda/REAL-RACING-150x150.jpg',
-            'racing de santander': 'escudos/segunda/REAL-RACING-150x150.jpg',
-            'racing': 'escudos/segunda/REAL-RACING-150x150.jpg',
-            'r. oviedo': 'escudos/primera/REAL-OVIEDO-150x150.jpg',
-            'real oviedo': 'escudos/primera/REAL-OVIEDO-150x150.jpg',
-            'oviedo': 'escudos/primera/REAL-OVIEDO-150x150.jpg',
-            'sporting': 'escudos/segunda/REAL-SPORTING-150x150.jpg',
-            'real sporting': 'escudos/segunda/REAL-SPORTING-150x150.jpg',
-            'r. zaragoza': 'escudos/segunda/REAL-ZARAGOZA-150x150.jpg',
-            'real zaragoza': 'escudos/segunda/REAL-ZARAGOZA-150x150.jpg',
-            'zaragoza': 'escudos/segunda/REAL-ZARAGOZA-150x150.jpg'
-        };
-
-        return map[t] || '';
     }
 
     selectOption(el, val) {
@@ -588,33 +508,13 @@ class PronosticoManager {
     }
 
     calculateDeadline(dateStr) {
-        const d = this.parseDate(dateStr);
+        const d = AppUtils.parseDate(dateStr);
         if (!d) return null;
 
         const deadline = new Date(d.getTime());
         deadline.setDate(d.getDate() - 3);  // 3 días antes (jueves si la jornada es domingo)
         deadline.setHours(17, 0, 0, 0);
         return deadline;
-    }
-
-    parseDate(dateStr) {
-        if (!dateStr) return null;
-        // Eliminar " de " para manejar formato "14 de diciembre de 2025"
-        const clean = dateStr.replace(/\(.*\)/, '').replace(/ de /g, ' ').trim();
-        const parts = clean.split(' ');
-
-        if (parts.length < 3) return new Date();
-
-        const day = parseInt(parts[0]);
-        const year = parseInt(parts[parts.length - 1]);
-        const monthStr = parts[1].toLowerCase();
-
-        const months = {
-            'enero': 0, 'febrero': 1, 'marzo': 2, 'abril': 3, 'mayo': 4, 'junio': 5,
-            'julio': 6, 'agosto': 7, 'septiembre': 8, 'octubre': 9, 'noviembre': 10, 'diciembre': 11
-        };
-
-        return new Date(year, months[monthStr] || 0, day);
     }
 
     renderSummaryTable() {
@@ -662,7 +562,7 @@ class PronosticoManager {
             let dateFormatted = j.date;
             try {
                 // Try parsing our standard format
-                const d = this.parseDate(j.date);
+                const d = AppUtils.parseDate(j.date);
                 if (d) {
                     dateFormatted = d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
                 }
@@ -678,16 +578,11 @@ class PronosticoManager {
                 const p = this.pronosticos.find(pr => pr.jId === j.id && pr.mId === m.id);
 
                 // Zebra striping logic: Alternate column backgrounds
-                // We use inline styles to force it regardless of theme variables (or using theme vars)
                 let colBg = index % 2 !== 0 ? 'background-color: var(--pastel-bg);' : 'background-color: transparent;';
 
                 let cellContent = '-';
                 let cellStyle = `text-align:center; vertical-align:middle; padding:0.6rem; border-bottom:1px solid var(--input-border); ${colBg} cursor:pointer; transition:background-color 0.2s;`;
                 let textStyle = '';
-
-                // Add hover effect class would be better, but inline we can use onmouseover
-                // Let's rely on class .summary-cell for listener and simple CSS hover if possible
-                // We'll add the class 'summary-cell'
 
                 if (p && p.selection) {
                     // Extract only first 14 matches (exclude Pleno/15)
@@ -701,7 +596,6 @@ class PronosticoManager {
                     if (p.late) {
                         // Late: Orange accent
                         textStyle = 'color: #e65100; font-weight:bold;';
-                        // Optional: maybe a small warning icon but user asked for simple line
                         cellContent = `<div style="font-family:monospace; font-size:0.95rem; letter-spacing:2px; white-space:nowrap; ${textStyle}" title="Enviado con retraso">${summary}</div>`;
                     } else {
                         // OK: Normal text (or green)
@@ -722,5 +616,6 @@ class PronosticoManager {
     }
 }
 
-const app = new PronosticoManager();
-window.app = app;
+document.addEventListener('DOMContentLoaded', () => {
+    window.app = new PronosticoManager();
+});
