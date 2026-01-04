@@ -24,6 +24,9 @@ class ResumenManager {
         this.createModal();
         this.renderTotalsList();
 
+        // Show global stats by default
+        this.renderGlobalStats();
+
         // Auto select top 4 logic moved here to ensure data is ready
         this.autoSelectTop4();
     }
@@ -266,22 +269,314 @@ class ResumenManager {
     }
 
 
-    showPointDetail(memberName, pointData) {
+    calculateMemberStats(memberId = null) {
+        const stats = {
+            hitsByMatch: Array(14).fill(0),
+            totalByMatch: Array(14).fill(0),
+            teamStats: {},
+            jornadaPerformance: {} // { jornadaNum: { hits: 0, total: 0 } }
+        };
+
+        // Process all played jornadas
+        this.jornadas.forEach(j => {
+            const hasResult = j.matches && j.matches[0] && j.matches[0].result;
+            if (!hasResult) return;
+
+            const targets = memberId ?
+                this.members.filter(m => m.id == memberId) :
+                this.members;
+
+            if (!stats.jornadaPerformance[j.number]) {
+                stats.jornadaPerformance[j.number] = { hits: 0, total: 0 };
+            }
+
+            targets.forEach(m => {
+                const p = this.pronosticos.find(pred =>
+                    (pred.jId == j.id || pred.jornadaId == j.id) &&
+                    (pred.mId == m.id || pred.memberId == m.id)
+                );
+
+                if (!p) return;
+
+                const selection = p.selection || p.forecasts || [];
+                const results = j.matches.map(m => m.result);
+
+                j.matches.forEach((m, idx) => {
+                    if (idx >= 14) return; // Exclude Pleno al 15
+
+                    const userVal = selection[idx];
+                    const officialVal = results[idx];
+                    const isHit = userVal === officialVal && officialVal !== '';
+
+                    // Stats per match number
+                    stats.totalByMatch[idx]++;
+                    if (isHit) stats.hitsByMatch[idx]++;
+
+                    // Stats per team
+                    [m.home, m.away].forEach(team => {
+                        if (!stats.teamStats[team]) {
+                            stats.teamStats[team] = { hits: 0, total: 0 };
+                        }
+                        stats.teamStats[team].total++;
+                        if (isHit) stats.teamStats[team].hits++;
+                    });
+
+                    // Performance per jornada
+                    stats.jornadaPerformance[j.number].total++;
+                    if (isHit) stats.jornadaPerformance[j.number].hits++;
+                });
+            });
+        });
+
+        return stats;
+    }
+
+    renderGlobalStats() {
+        const stats = this.calculateMemberStats(null);
+        this.renderStatsHTML("PEÑA COMPLETA", stats, null);
+    }
+
+    renderStatsHTML(titleName, stats, jornadaData = null) {
         let detailSection = document.getElementById('chart-detail-section');
         if (!detailSection) {
             const chartContainer = document.getElementById('evolutionChart').parentElement;
             detailSection = document.createElement('div');
             detailSection.id = 'chart-detail-section';
-            // Adjusted styles for compact fit
             detailSection.style.marginTop = '1rem';
             detailSection.style.borderTop = '2px solid #eee';
-            detailSection.style.paddingTop = '0.5rem';
-            detailSection.style.minHeight = '300px';
+            detailSection.style.paddingTop = '1rem';
             chartContainer.parentElement.appendChild(detailSection);
         }
 
-        const jornada = this.jornadas.find(j => j.id == pointData.jornadaId);
+        // Team Results (Weighted Analysis)
+        const teamResults = Object.entries(stats.teamStats)
+            .map(([name, data]) => {
+                const rate = (data.hits / data.total);
+                // Relevance formula: rate * sqrt of total matches to reward consistency and volume
+                const relevance = rate * Math.sqrt(data.total);
+                return { name, rate: rate * 100, total: data.total, relevance, hits: data.hits };
+            })
+            .sort((a, b) => b.relevance - a.relevance || b.total - a.total);
 
+        const teamResultsHtml = teamResults.map(t => {
+            // Reliability level based on matches played
+            const reliability = Math.min(t.total / 10, 1) * 100; // 10 matches = 100% reliability icon
+            const relColor = reliability > 70 ? '#2e7d32' : reliability > 40 ? '#f57f17' : '#9e9e9e';
+
+            return `
+                <div style="border-bottom:1px solid #f0f0f0; padding:6px 0;">
+                    <div style="display:flex; justify-content:space-between; font-size:0.8rem; margin-bottom:2px;">
+                        <span style="font-weight:600;">${t.name}</span>
+                        <span style="font-weight:bold; color:${t.rate >= 50 ? '#2e7d32' : '#d84315'}">${t.rate.toFixed(0)}%</span>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <div style="flex:1; height:4px; background:#eee; border-radius:2px; overflow:hidden;">
+                            <div style="height:100%; width:${t.rate}%; background:${t.rate >= 50 ? '#81c784' : '#ef9a9a'};"></div>
+                        </div>
+                        <span style="font-size:0.6rem; color:#888; white-space:nowrap;">${t.total} matches</span>
+                        <div title="Fiabilidad estadística" style="width:8px; height:8px; border-radius:50%; background:${relColor};"></div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        // Match Results (ALL 1-14)
+        let maxMatchRate = -1, minMatchRate = 101;
+        stats.hitsByMatch.forEach((hits, idx) => {
+            const total = stats.totalByMatch[idx];
+            if (total > 0) {
+                const rate = (hits / total * 100);
+                if (rate > maxMatchRate) maxMatchRate = rate;
+                if (rate < minMatchRate) minMatchRate = rate;
+            }
+        });
+
+        const matchResultsHtml = stats.hitsByMatch.map((hits, idx) => {
+            const total = stats.totalByMatch[idx];
+            const rate = total > 0 ? (hits / total * 100) : 0;
+            const isBest = total > 0 && rate === maxMatchRate;
+            const isWorst = total > 0 && rate === minMatchRate;
+            const style = isBest ? 'background:#e3f2fd; font-weight:bold; border-left:3px solid #0288d1; padding-left:4px;' :
+                isWorst ? 'background:#ffebee; font-weight:bold; border-left:3px solid #d32f2f; padding-left:4px;' : '';
+
+            return `
+                <div style="display:flex; justify-content:space-between; font-size:0.8rem; padding:4px 0; border-bottom:1px solid #f0f0f0; ${style}">
+                    <span>Partido #${idx + 1} ${isBest ? '⭐' : isWorst ? '🚩' : ''}</span>
+                    <span style="color:${rate >= 50 ? '#2e7d32' : '#d84315'}">${rate.toFixed(0)}%</span>
+                </div>
+            `;
+        }).join('');
+
+        // Current Jornada view (optional)
+        let leftColumn = '';
+        if (jornadaData) {
+            leftColumn = `
+                <div style="border-right:1px solid #eee; padding-right:1rem;">
+                    <h4 style="margin:0 0 0.8rem 0; font-size:0.9rem; color:#546e7a; text-transform:uppercase;">Resultado Jornada</h4>
+                    <div style="display:flex; justify-content:space-around; background:#f5f7f9; padding:0.8rem; border-radius:8px; margin-bottom:1rem;">
+                        <div style="text-align:center;">
+                            <div style="font-size:1.4rem; font-weight:bold; color:var(--primary-orange);">${jornadaData.y}</div>
+                            <div style="font-size:0.65rem; color:#777; font-weight:bold;">ACUMULADO</div>
+                        </div>
+                        <div style="text-align:center;">
+                            <div style="font-size:1.4rem; font-weight:bold; color:#2e7d32;">+${jornadaData.dayPoints}</div>
+                            <div style="font-size:0.65rem; color:#777; font-weight:bold;">PUNTOS J.</div>
+                        </div>
+                        <div style="text-align:center;">
+                            <div style="font-size:1.4rem; font-weight:bold; color:#1976d2;">${jornadaData.dayHits}</div>
+                            <div style="font-size:0.65rem; color:#777; font-weight:bold;">ACIERTOS J.</div>
+                        </div>
+                    </div>
+                    <div style="max-height:430px; overflow-y:auto; border-radius:6px; border:1px solid #f0f0f0;">
+                        ${jornadaData.matchesHtml}
+                    </div>
+                </div>
+            `;
+        } else {
+            // Summary for global view
+            const totalSocios = this.members.length;
+            const playedJornadas = this.jornadas.filter(j => j.matches && j.matches[0] && j.matches[0].result).length;
+
+            leftColumn = `
+                <div style="border-right:1px solid #eee; padding-right:1rem; display:flex; flex-direction:column; justify-content:center;">
+                    <div style="text-align:center; padding:2rem; background:#fff3e0; border-radius:12px; border:1px solid #ffe0b2;">
+                        <div style="font-size:3rem; margin-bottom:1rem;">🏆</div>
+                        <h4 style="margin:0; color:var(--primary-orange); line-height:1.2;">Resumen Acumulado<br>Toda la Peña</h4>
+                        <div style="margin-top:2rem; display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
+                            <div style="background:white; padding:1rem; border-radius:8px;">
+                                <div style="font-size:1.5rem; font-weight:bold; color:#558b2f;">${totalSocios}</div>
+                                <div style="font-size:0.7rem; color:#666; font-weight:bold; text-transform:uppercase;">Socios</div>
+                            </div>
+                            <div style="background:white; padding:1rem; border-radius:8px;">
+                                <div style="font-size:1.5rem; font-weight:bold; color:#1976d2;">${playedJornadas}</div>
+                                <div style="font-size:0.7rem; color:#666; font-weight:bold; text-transform:uppercase;">Jornadas</div>
+                            </div>
+                        </div>
+                        <p style="margin-top:1.5rem; font-size:0.85rem; color:#795548; font-style:italic;">
+                            Haz clic en un punto de la gráfica para ver el estudio individual de un socio y su jornada.
+                        </p>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Jornada analysis
+        const jornadaList = Object.entries(stats.jornadaPerformance)
+            .map(([num, data]) => ({
+                num: parseInt(num),
+                rate: (data.hits / data.total * 100),
+                hits: data.hits
+            }))
+            .sort((a, b) => a.num - b.num);
+
+        let maxRate = -1, minRate = 101;
+        jornadaList.forEach(j => {
+            if (j.rate > maxRate) maxRate = j.rate;
+            if (j.rate < minRate) minRate = j.rate;
+        });
+
+        const jPerformanceHtml = jornadaList.map(j => {
+            const isBest = j.rate === maxRate && maxRate !== -1;
+            const isWorst = j.rate === minRate && minRate !== 101;
+            const barColor = isBest ? '#0288d1' : (isWorst ? '#d32f2f' : '#558b2f');
+            const textColor = isBest ? '#01579b' : (isWorst ? '#c62828' : '#33691e');
+            const bgColor = isBest ? '#e1f5fe' : (isWorst ? '#ffcdd2' : '#c5e1a5');
+
+            return `
+                <div style="flex: 0 0 55px; display:flex; flex-direction:column; align-items:center; border-radius:4px; padding:4px; background:${isBest || isWorst ? bgColor : 'transparent'};">
+                    <div style="font-size:0.6rem; font-weight:bold; color:${textColor}; text-align:center; line-height:1.1;">
+                        J${j.num}<br>${j.rate.toFixed(0)}%
+                    </div>
+                    <div style="width:12px; height:40px; background:#e0e0e0; border-radius:10px; position:relative; margin:4px 0; overflow:hidden;">
+                        <div style="width:100%; height:${j.rate}%; background:${barColor}; position:absolute; bottom:0; transition: height 0.3s;"></div>
+                    </div>
+                    <div style="font-size:0.65rem; font-weight:bold; color:#555;">
+                        ${(j.hits / (titleName === "PEÑA COMPLETA" ? this.members.length : 1)).toFixed(0)} ac.
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        const bestJs = jornadaList.filter(j => j.rate === maxRate).map(j => j.num);
+
+        // Summary Text Generation - Using Relevance instead of raw rate
+        const mostRelevantTeam = teamResults[0] || { name: 'N/A', rate: 0 };
+
+        const bestJText = bestJs.length > 1 ? `las Jornadas ${bestJs.join(', ')}` : `la Jornada ${bestJs[0]}`;
+
+        const summaryText = titleName === "PEÑA COMPLETA"
+            ? `La peña mantiene una efectividad media del **${(jornadaList.reduce((a, b) => a + b.rate, 0) / jornadaList.length || 0).toFixed(0)}%**. El equipo más fiable estadísticamente es el **${mostRelevantTeam.name}** (acierto del ${mostRelevantTeam.rate.toFixed(0)}% en ${mostRelevantTeam.total} partidos), mientras que **${bestJText}** han sido el techo histórico de la temporada.`
+            : `**${titleName}** destaca especialmente en el **Partido #${stats.hitsByMatch.indexOf(Math.max(...stats.hitsByMatch)) + 1}**. Su mejor rendimiento se concentra en el **${mostRelevantTeam.name}** (${mostRelevantTeam.rate.toFixed(0)}% de acierto en ${mostRelevantTeam.total} partidos), con su pico máximo en **${bestJText}**.`;
+
+        detailSection.innerHTML = `
+            <div style="background:white; padding:1rem; border-radius:12px; box-shadow:0 4px 15px rgba(0,0,0,0.1); border:1px solid #eee;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; border-bottom:2px solid var(--primary-orange); padding-bottom:0.8rem;">
+                    <h3 style="margin:0; color:var(--primary-orange); display:flex; align-items:center; gap:0.5rem;">
+                        <span style="background:var(--primary-orange); color:white; padding:2px 8px; border-radius:4px;">📊</span>
+                        ${titleName === "PEÑA COMPLETA" ? "ESTUDIO ESTADÍSTICO - PEÑA COMPLETA" : "Resumen de " + titleName}
+                    </h3>
+                    <button onclick="document.getElementById('chart-detail-section').innerHTML=''; window.app.renderGlobalStats();" style="background:var(--primary-orange); color:white; border:none; border-radius:6px; padding:6px 12px; cursor:pointer; font-weight:bold; font-size:0.8rem; box-shadow:0 2px 4px rgba(0,0,0,0.1); transition:all 0.2s;" onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">
+                        Ver datos Peña
+                    </button>
+                </div>
+
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1.5rem;">
+                    <!-- LEFT COLUMN -->
+                    ${leftColumn}
+
+                    <!-- RIGHT COLUMN: HISTORICAL STUDY -->
+                    <div style="display:flex; flex-direction:column; gap:1rem;">
+                        ${titleName !== "PEÑA COMPLETA" ? `<h4 style="margin:0; font-size:0.9rem; color:#d84315; text-transform:uppercase;">📊 ESTUDIO ESTADÍSTICO - ${titleName.toUpperCase()}</h4>` : ''}
+                        
+                        <!-- Summary Text Box -->
+                        <div style="background:#fff3e0; padding:0.8rem; border-radius:8px; border:1px solid #ffe0b2; font-size:0.85rem; color:#5d4037; line-height:1.4;">
+                            ${summaryText.replace(/\*\*(.*?)\*\*/g, '<strong style="color:var(--primary-orange)">$1</strong>')}
+                        </div>
+
+                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
+                            <!-- MATCH STATS -->
+                            <div style="background:#fff8e1; padding:0.8rem; border-radius:8px; border-top:4px solid #ffb300;">
+                                <h5 style="margin:0 0 0.5rem 0; font-size:0.75rem; color:#8d6e63; text-transform:uppercase;">ACIERTO POR PARTIDO</h5>
+                                <div style="max-height:150px; overflow-y:auto; padding-right:5px;">
+                                    ${matchResultsHtml}
+                                </div>
+                            </div>
+
+                            <!-- TEAM STATS -->
+                            <div style="background:#e3f2fd; padding:0.8rem; border-radius:8px; border-top:4px solid #1976d2;">
+                                <h5 style="margin:0 0 0.5rem 0; font-size:0.75rem; color:#1565c0; text-transform:uppercase;">ACIERTO POR EQUIPOS</h5>
+                                <div style="max-height:150px; overflow-y:auto; padding-right:5px;">
+                                    ${teamResultsHtml}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style="background:#f1f8e9; padding:1rem; border-radius:8px; border-left:4px solid #7cb342;">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+                                <h5 style="margin:0; font-size:0.8rem; color:#33691e; text-transform:uppercase;">RENDIMIENTO POR JORNADA</h5>
+                                <div style="display:flex; gap:8px; font-size:0.6rem; font-weight:bold;">
+                                    <span style="color:#01579b;">● MEJOR</span>
+                                    <span style="color:#c62828;">● PEOR</span>
+                                </div>
+                            </div>
+                            <div style="display:flex; gap:5px; overflow-x:auto; padding:5px 0 10px 0; scrollbar-width: thin;">
+                                ${jPerformanceHtml}
+                            </div>
+                        </div>
+
+                        <div style="font-size:0.7rem; color:#999; text-align:center; font-style:italic;">
+                            * Basado en los 14 partidos base. Las jornadas se resaltan por su porcentaje de acierto relativo.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        detailSection.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    showPointDetail(memberName, pointData) {
+        const stats = this.calculateMemberStats(pointData.memberId);
+        const jornada = this.jornadas.find(j => j.id == pointData.jornadaId);
         const pronostico = this.pronosticos.find(p =>
             (p.jId == pointData.jornadaId || p.jornadaId == pointData.jornadaId) &&
             (p.mId == pointData.memberId || p.memberId == pointData.memberId)
@@ -289,16 +584,17 @@ class ResumenManager {
 
         const selection = (pronostico && (pronostico.selection || pronostico.forecasts)) || [];
 
+        // 1. Matches Table (Current Jornada)
         let matchesHtml = '';
         if (jornada && jornada.matches) {
             matchesHtml = `
-                <table style="width:100%; border-collapse:collapse; margin-top:5px; font-size:0.85rem;">
+                <table style="width:100%; border-collapse:collapse; font-size:0.85rem;">
                     <thead>
                         <tr style="background:#546e7a; color:white;">
-                            <th style="padding:4px;">Encuentro</th>
-                            <th style="padding:4px;">Resultado</th>
-                            <th style="padding:4px;">Pronóstico</th>
-                            <th style="padding:4px;">ACIERTOS</th>
+                            <th style="padding:4px;">#</th>
+                            <th style="padding:4px; text-align:left;">Partido</th>
+                            <th style="padding:4px; text-align:center;">Resultado</th>
+                            <th style="padding:4px; text-align:center;">Pronóstico</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -308,60 +604,33 @@ class ResumenManager {
                 const userVal = selection[idx] || '-';
                 const officialVal = m.result;
                 const isHit = userVal === officialVal && officialVal !== '';
-                const color = isHit ? 'green' : (userVal !== '-' ? '#d32f2f' : '#999');
-                const icon = isHit ? '✅' : (userVal !== '-' ? '❌' : '⚪');
+                const color = isHit ? '#2e7d32' : (userVal !== '-' ? '#d32f2f' : '#999');
                 const rowBg = isHit ? '#e8f5e9' : 'transparent';
-
-                const homeLogo = `<img src="${AppUtils.getTeamLogo(m.home)}" onerror="this.style.display='none'" style="height:20px; vertical-align:middle; margin-right:4px;">`;
-                const awayLogo = `<img src="${AppUtils.getTeamLogo(m.away)}" onerror="this.style.display='none'" style="height:20px; vertical-align:middle; margin-left:4px;">`;
 
                 matchesHtml += `
                     <tr style="border-bottom:1px solid #eee; background-color:${rowBg};">
-                        <td style="padding:3px; text-align:center;">
-                            <div style="display:flex; align-items:center; justify-content:center; white-space:nowrap;">
-                                ${homeLogo} <span style="font-weight:bold;">${m.home}</span> <span style="margin:0 4px;">-</span> <span style="font-weight:bold;">${m.away}</span> ${awayLogo}
-                            </div>
+                        <td style="padding:4px; text-align:center; color:#666;">${idx + 1}</td>
+                        <td style="padding:4px;">
+                            <span style="font-weight:600;">${m.home}</span> - <span style="font-weight:600;">${m.away}</span>
                         </td>
-                        <td style="padding:3px; font-weight:bold; text-align:center; font-size:0.9rem;">${officialVal}</td>
-                        <td style="padding:3px; font-weight:bold; text-align:center; color:${color}; font-size:0.9rem;">${userVal}</td>
-                        <td style="padding:3px; text-align:center;">${icon}</td>
+                        <td style="padding:4px; text-align:center; font-weight:bold;">${officialVal}</td>
+                        <td style="padding:4px; text-align:center; font-weight:bold; color:${color};">${userVal}</td>
                     </tr>
                 `;
             });
             matchesHtml += '</tbody></table>';
-        } else {
-            matchesHtml = '<div style="padding:1rem; text-align:center; color:#999;">Datos no encontrados.</div>';
         }
 
-        detailSection.innerHTML = `
-            <div style="background:white; padding:0.5rem 1rem; border-radius:8px; box-shadow:0 1px 5px rgba(0,0,0,0.1); height:100%; display:flex; flex-direction:column;">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem; border-bottom:1px solid #ddd; padding-bottom:0.2rem;">
-                    <h3 style="margin:0; color:var(--primary-purple); font-size:1.1rem;">${memberName} - J${pointData.jornadaNum}</h3>
-                    <button onclick="document.getElementById('chart-detail-section').innerHTML=''; document.getElementById('chart-detail-section').style.minHeight='0';" style="background:none; border:none; cursor:pointer; font-size:1.1rem;">✖️</button>
-                </div>
+        // Prepare data for renderStatsHTML
+        const jornadaData = {
+            matchesHtml: matchesHtml,
+            y: pointData.y,
+            dayPoints: pointData.dayPoints,
+            dayHits: pointData.dayHits,
+            jornadaNum: pointData.jornadaNum
+        };
 
-                <div style="display:flex; justify-content:space-around; align-items:center; margin-bottom:0.5rem; background:#f9f9f9; padding:0.5rem; border-radius:4px;">
-                    <div style="text-align:center;">
-                        <div style="font-size:1.2rem; font-weight:bold; color:var(--primary-purple);">${pointData.y}</div>
-                        <div style="font-size:0.7rem; color:#666;">Total</div>
-                    </div>
-                    <div style="text-align:center;">
-                        <div style="font-size:1.2rem; font-weight:bold; color:#2e7d32;">+${pointData.dayPoints}</div>
-                        <div style="font-size:0.7rem; color:#666;">Jornada</div>
-                    </div>
-                    <div style="text-align:center;">
-                         <div style="font-size:1.2rem; font-weight:bold; color:#1976d2;">${pointData.dayHits}</div>
-                         <div style="font-size:0.7rem; color:#666;">Aciertos</div>
-                    </div>
-                </div>
-                
-                <div style="overflow-y:auto; flex:1;">
-                    ${matchesHtml}
-                </div>
-            </div>
-        `;
-
-        detailSection.scrollIntoView({ behavior: 'smooth' });
+        this.renderStatsHTML(memberName, stats, jornadaData);
     }
 }
 

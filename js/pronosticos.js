@@ -58,6 +58,11 @@ class PronosticoManager {
         this.auditLateCheck = document.getElementById('audit-late-penalty');
         this.btnConfirmAudit = document.getElementById('btn-confirm-audit');
         this.btnCancelAudit = document.getElementById('btn-cancel-audit');
+
+        // Sticky Scrollbar Elements
+        this.stickyScrollContainer = document.getElementById('sticky-scrollbar-container');
+        this.stickyScrollContent = document.getElementById('sticky-scrollbar-content');
+
         this.btnToggleSummary = document.getElementById('btn-toggle-summary');
         if (this.btnToggleSummary) {
             this.btnToggleSummary.addEventListener('click', () => {
@@ -76,6 +81,25 @@ class PronosticoManager {
                     if (jId && mId) {
                         this.selectAndLoad(jId, mId);
                     }
+                }
+            });
+        }
+
+        // Sync scroll events
+        if (this.summaryContainer && this.stickyScrollContainer) {
+            this.summaryContainer.addEventListener('scroll', () => {
+                if (!this.isSyncingSticky) {
+                    this.isSyncingFloating = true;
+                    this.stickyScrollContainer.scrollLeft = this.summaryContainer.scrollLeft;
+                    this.isSyncingFloating = false;
+                }
+            });
+
+            this.stickyScrollContainer.addEventListener('scroll', () => {
+                if (!this.isSyncingFloating) {
+                    this.isSyncingSticky = true;
+                    this.summaryContainer.scrollLeft = this.stickyScrollContainer.scrollLeft;
+                    this.isSyncingSticky = false;
                 }
             });
         }
@@ -99,6 +123,8 @@ class PronosticoManager {
 
         // Doubles Save
         if (this.btnSaveDoubles) this.btnSaveDoubles.addEventListener('click', () => this.saveDoubles());
+
+        window.addEventListener('resize', () => this.updateStickyScrollbar());
     }
 
     async init() {
@@ -609,10 +635,21 @@ class PronosticoManager {
         const existing = this.pronosticos.find(p => p.jId === this.currentJornadaId && p.mId === this.currentMemberId);
         const currentSelections = existing ? existing.selection : Array(15).fill(null);
 
+        // Fetch other members' forecasts for this jornada
+        const othersForecasts = this.pronosticos.filter(p =>
+            (p.jId === this.currentJornadaId || p.jornadaId === this.currentJornadaId) &&
+            (p.mId !== this.currentMemberId && p.memberId !== this.currentMemberId)
+        );
+
         jornada.matches.forEach((match, idx) => {
             const displayIdx = idx === 14 ? 'P15' : idx + 1;
             const row = document.createElement('div');
             row.className = 'pronostico-row';
+            row.style.display = "flex";
+            row.style.alignItems = "center";
+            row.style.gap = "15px";
+            row.style.padding = "10px";
+            row.style.borderBottom = "1px solid #f0f0f0";
 
             let disabledStr = isLocked ? 'style="pointer-events:none; opacity:0.6;"' : '';
             if (disabledStr === '' && this.correctionMode && isLockedRef) {
@@ -624,7 +661,7 @@ class PronosticoManager {
                 const bigThree = ['Real Madrid', 'Atlético de Madrid', 'FC Barcelona'];
                 const isBigMatch = bigThree.includes(match.home) && bigThree.includes(match.away);
                 if (!isBigMatch) {
-                    disabledStr = 'style="pointer-events:none; opacity:0.3; background:#eee;" title="Pleno deshabilitado"';
+                    disabledStr = 'style="pointer-events:none; opacity:0.3; background:transparent;" title="Pleno deshabilitado"';
                 }
             }
 
@@ -632,26 +669,50 @@ class PronosticoManager {
             const homeLogo = AppUtils.getTeamLogo(match.home);
             const awayLogo = AppUtils.getTeamLogo(match.away);
 
+            // Generate "Others" HTML
+            let othersHtml = othersForecasts.map(of => {
+                const member = this.members.find(m => m.id === of.mId || m.id === of.memberId);
+                if (!member) return '';
+                const sign = of.selection[idx];
+                if (!sign) return '';
+
+                const initials = (member.name[0] + (member.surname ? member.surname[0] : '')).toUpperCase();
+                const signColor = sign === '1' ? '#1976d2' : sign === 'X' ? '#757575' : '#d32f2f';
+
+                return `
+                    <div title="${member.name} ${member.surname || ''}: ${sign}" 
+                         style="display:flex; flex-direction:column; align-items:center; min-width:25px; cursor:default;">
+                        <span style="font-size:0.6rem; color:#888; font-weight:bold;">${initials}</span>
+                        <span style="font-size:0.75rem; font-weight:bold; color:${signColor}; border:1px solid ${signColor}; border-radius:3px; padding:0 3px; background:white;">${sign}</span>
+                    </div>
+                `;
+            }).join('');
+
             row.innerHTML = `
-                <div class="p-match-info">
+                <div class="p-match-info" style="flex: 2; min-width: 250px;">
                     <span style="font-weight:bold; color:var(--primary-green); width:30px;">${displayIdx}</span>
                     
                     <div style="flex:1; display:flex; justify-content:flex-end; align-items:center; gap:8px;">
-                        <span>${match.home}</span>
-                        <img src="${homeLogo}" class="team-logo" style="width:25px; height:25px; object-fit:contain;" onerror="this.style.display='none'">
+                        <span style="font-size:0.9rem;">${match.home}</span>
+                        <img src="${homeLogo}" class="team-logo" style="width:20px; height:20px; object-fit:contain;" onerror="this.style.display='none'">
                     </div>
 
                     <span style="margin:0 10px; color:#aaa;">-</span>
 
                     <div style="flex:1; display:flex; justify-content:flex-start; align-items:center; gap:8px;">
-                        <img src="${awayLogo}" class="team-logo" style="width:25px; height:25px; object-fit:contain;" onerror="this.style.display='none'">
-                        <span>${match.away}</span>
+                        <img src="${awayLogo}" class="team-logo" style="width:20px; height:20px; object-fit:contain;" onerror="this.style.display='none'">
+                        <span style="font-size:0.9rem;">${match.away}</span>
                     </div>
                 </div>
-                <div class="p-options" ${disabledStr} data-idx="${idx}">
-                    <div class="chk-option ${val === '1' ? 'selected' : ''}" onclick="app.selectOption(this, '1')">1</div>
-                    <div class="chk-option ${val === 'X' ? 'selected' : ''}" onclick="app.selectOption(this, 'X')">X</div>
-                    <div class="chk-option ${val === '2' ? 'selected' : ''}" onclick="app.selectOption(this, '2')">2</div>
+
+                <div class="p-options" ${disabledStr} data-idx="${idx}" style="flex: 1; display:flex; justify-content:center; gap:5px;">
+                    <div class="chk-option ${val === '1' ? 'selected' : ''}" onclick="window.app.selectOption(this, '1')">1</div>
+                    <div class="chk-option ${val === 'X' ? 'selected' : ''}" onclick="window.app.selectOption(this, 'X')">X</div>
+                    <div class="chk-option ${val === '2' ? 'selected' : ''}" onclick="window.app.selectOption(this, '2')">2</div>
+                </div>
+
+                <div class="p-others" style="flex: 1; display:flex; gap:6px; overflow-x:auto; padding:4px; background:#f5f7f9; border-radius:6px; border:1px solid #e1e4e8; min-height:40px; align-items:center;">
+                    ${othersHtml || '<span style="font-size:0.65rem; color:#bbb; align-self:center; font-style:italic; padding-left:5px;">Sin otros pronósticos</span>'}
                 </div>
             `;
             this.container.appendChild(row);
@@ -685,8 +746,37 @@ class PronosticoManager {
 
     selectOption(el, val) {
         const parent = el.parentElement;
+        const idx = parseInt(parent.dataset.idx);
         parent.querySelectorAll('.chk-option').forEach(c => c.classList.remove('selected'));
         el.classList.add('selected');
+
+        // Update consensus in real-time
+        this.updateRowConsensus(idx, val);
+    }
+
+    updateRowConsensus(idx, myVal) {
+        const othersForecasts = this.pronosticos.filter(p =>
+            (p.jId === this.currentJornadaId || p.jornadaId === this.currentJornadaId) &&
+            (p.mId !== this.currentMemberId && p.memberId !== this.currentMemberId)
+        );
+
+        const signs = othersForecasts.map(of => of.selection[idx]).filter(s => s);
+        if (myVal) signs.push(myVal);
+        const total = signs.length;
+        if (total === 0) return;
+
+        const s1 = (signs.filter(s => s === '1').length / total * 100).toFixed(0);
+        const sX = (signs.filter(s => s === 'X').length / total * 100).toFixed(0);
+        const s2 = (signs.filter(s => s === '2').length / total * 100).toFixed(0);
+
+        const consensusBox = document.getElementById(`consensus-${idx}`);
+        if (consensusBox) {
+            consensusBox.innerHTML = `
+                <div style="display:flex; justify-content:space-between; color:#1976d2;"><span>1:</span> <b>${s1}%</b></div>
+                <div style="display:flex; justify-content:space-between; color:#757575;"><span>X:</span> <b>${sX}%</b></div>
+                <div style="display:flex; justify-content:space-between; color:#d32f2f;"><span>2:</span> <b>${s2}%</b></div>
+            `;
+        }
     }
 
     async saveForecast() {
@@ -987,6 +1077,25 @@ class PronosticoManager {
 
             tbody.appendChild(row);
         });
+
+        // After rendering, update floating scrollbar
+        setTimeout(() => this.updateStickyScrollbar(), 500);
+    }
+
+    updateStickyScrollbar() {
+        if (!this.summaryContainer || !this.stickyScrollContainer || !this.summaryTable) return;
+
+        const tableWidth = this.summaryTable.offsetWidth;
+        const containerWidth = this.summaryContainer.offsetWidth;
+
+        if (tableWidth > containerWidth) {
+            this.stickyScrollContainer.style.display = 'block';
+            this.stickyScrollContent.style.width = tableWidth + 'px';
+            // Sync initial state
+            this.stickyScrollContainer.scrollLeft = this.summaryContainer.scrollLeft;
+        } else {
+            this.stickyScrollContainer.style.display = 'none';
+        }
     }
     checkEligibility(currentJornadaNum, memberId) {
         if (currentJornadaNum <= 1) return { eligible: false };

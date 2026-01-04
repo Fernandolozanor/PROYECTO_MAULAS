@@ -17,7 +17,7 @@ const Auth = {
     async login(email, password) {
         // Master Password (Local)
         const storedPwd = localStorage.getItem('maulas_admin_pass');
-        const validPwd = storedPwd || '_Est4tuTo5M4uLAs!';
+        const validPwd = storedPwd || 'ESTATUTOS';
 
         if (password !== validPwd) {
             alert('Contraseña incorrecta.');

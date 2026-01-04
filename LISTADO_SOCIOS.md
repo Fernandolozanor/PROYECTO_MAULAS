@@ -1,7 +1,7 @@
 # LISTADO DE SOCIOS Y CREDENCIALES
 
 Aquí tienes el listado completo de los correos electrónicos generados para los socios.
-La contraseña para todos es: `_Est4tuTo5M4uLAs!`
+La contraseña para todos es: `ESTATUTOS`
 
 | Nº Socio | Nombre | Correo Electrónico (Usuario) |
 | :--- | :--- | :--- |

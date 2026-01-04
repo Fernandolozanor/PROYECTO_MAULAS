@@ -140,12 +140,12 @@ class DashboardManager {
             nextRolesHtml = `
                 <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #eee; text-align: left;">
                     <div style="margin-bottom:0.5rem;">
-                        <span style="font-size:1.2rem;">👑</span> 
+                        <span style="font-size:1.2rem;">🍺</span> 
                         <strong>Columnas de Dobles:</strong> <span style="color:var(--primary-blue); font-weight:bold;">${winnerText}</span>
                     </div>
                     <div>
-                        <span style="font-size:1.2rem;">🧊</span> 
-                        <strong>Sella la Quiniela (Maula):</strong> <span style="color:var(--danger); font-weight:bold;">${loserText}</span>
+                        <span style="font-size:1.2rem;">🥛</span> 
+                        <strong>Sella la Quiniela por Maula:</strong> <span style="color:var(--danger); font-weight:bold;">${loserText}</span>
                     </div>
                 </div>
             `;

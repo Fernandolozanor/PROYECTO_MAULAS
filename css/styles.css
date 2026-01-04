@@ -839,6 +839,7 @@ tbody td {
     margin: 0 6px;
     vertical-align: middle;
 }
+
 /* Doubles Prediction Buttons */
 .btn-prediction {
     padding: 0.5rem 1rem;
@@ -850,16 +851,51 @@ tbody td {
     color: #666;
     transition: all 0.2s;
 }
+
 .btn-prediction.active {
     background: #6a1b9a;
     color: white;
     border-color: #4a148c;
 }
+
 .btn-prediction:hover:not(:disabled) {
     background: #e1bee7;
     color: #4a148c;
 }
+
 .btn-prediction:disabled {
     opacity: 0.6;
     cursor: default;
+}
+
+/* Custom Scrollbar for Pronosticos Table */
+.pronosticos-page .table-container::-webkit-scrollbar,
+#sticky-scrollbar-container::-webkit-scrollbar {
+    height: 12px;
+    display: block !important;
+}
+
+.pronosticos-page .table-container::-webkit-scrollbar-track,
+#sticky-scrollbar-container::-webkit-scrollbar-track {
+    background: var(--pastel-bg-red);
+    border-radius: 10px;
+}
+
+.pronosticos-page .table-container::-webkit-scrollbar-thumb,
+#sticky-scrollbar-container::-webkit-scrollbar-thumb {
+    background: var(--primary-red);
+    border-radius: 10px;
+    border: 3px solid var(--card-bg);
+}
+
+.pronosticos-page .table-container::-webkit-scrollbar-thumb:hover,
+#sticky-scrollbar-container::-webkit-scrollbar-thumb:hover {
+    background: var(--dark-red);
+}
+
+/* Ensure visibility on Firefox */
+.pronosticos-page .table-container,
+#sticky-scrollbar-container {
+    scrollbar-width: auto;
+    scrollbar-color: var(--primary-red) var(--pastel-bg-red);
 }
