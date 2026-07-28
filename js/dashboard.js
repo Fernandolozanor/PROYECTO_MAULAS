@@ -120,13 +120,11 @@ class DashboardManager {
 
             playedJornadas.forEach((jornada, index) => {
                 const jornadaResults = [];
-                const jDate = AppUtils.parseDate(jornada.date);
 
                 this.members.forEach(member => {
                     const mIdStr = String(member.id);
                     const jIdStr = String(jornada.id);
                     const p = pronosticosMap.get(`${jIdStr}_${mIdStr}`);
-
                     let hits = -1;
                     let points = 0;
                     let bonus = 0;
@@ -135,59 +133,21 @@ class DashboardManager {
                     let hasPronostico = false;
                     let isPig15 = false;
                     let pigHit = false;
-
-                    let actuallyPlayed = false;
-                    if (p) {
-                        const sel = p.selection || p.forecasts || [];
-                        if (Array.isArray(sel)) {
-                            actuallyPlayed = sel.some(s => s && String(s).trim() !== '' && String(s) !== '-');
-                        }
-                    }
-
                     let potentialHits = null;
-                    if (actuallyPlayed) {
-                        hasPronostico = true;
-                        isLate = p.late || false;
-                        isPardoned = p.pardoned || false;
-                        const sel = p.selection || p.forecasts || [];
-                        const officialResults = jornada.matches ? jornada.matches.map(m => m.result) : [];
 
-                        // Check for PIG (Pleno al 15 is index 14)
-                        const match15 = jornada.matches && jornada.matches[14];
-                        if (match15 && window.AppUtils) {
-                            if (window.AppUtils.isPigMatch(match15.home, match15.away)) {
-                                isPig15 = true;
-                            }
-                        }
-
-                        // Use window.ScoringSystem to ensure access
-                        let ev = { hits: -1, points: 0, bonus: 0 };
-                        if (window.ScoringSystem) {
-                            ev = window.ScoringSystem.evaluateForecast(sel, officialResults, jDate);
-                        }
-
-                        if (isLate && !isPardoned) {
-                            hits = 0;
-                            points = window.ScoringSystem ? window.ScoringSystem.calculateScore(0, jDate) : 0;
-                            bonus = points;
-                            potentialHits = ev.hits;
-                        } else {
+                    if (p) {
+                        const ev = window.ScoringSystem.evaluateMember(member, jornada, p);
+                        if (ev.played) {
+                            hasPronostico = true;
+                            isLate = ev.isLate;
+                            isPardoned = ev.isPardoned;
                             hits = ev.hits;
                             points = ev.points;
                             bonus = ev.bonus;
+                            potentialHits = ev.potentialHits;
+                            isPig15 = ev.isPig15;
+                            pigHit = ev.pigHit;
                         }
-
-                        // Check PIG hit status regardless of late sealing (only affects bote, not hits count for PIG display)
-                        if (isPig15) {
-                            const rSign15 = window.ScoringSystem ? window.ScoringSystem.normalizeSign(officialResults[14]) : officialResults[14];
-                            const pred15 = String(sel[14] || '').trim().toUpperCase();
-                            if (pred15 && (pred15 === rSign15 || pred15 === String(officialResults[14]).trim().toUpperCase())) {
-                                pigHit = true;
-                            }
-                        }
-                    } else {
-                        hits = -1;
-                        points = 0;
                     }
 
                     jornadaResults.push({

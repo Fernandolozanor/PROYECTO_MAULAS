@@ -213,44 +213,22 @@ class ResumenManager {
                     (pred.mId == m.id || pred.memberId == m.id)
                 );
                 let points = 0;
-                let hits = 0;
-
-                let actuallyPlayed = false;
-                let isLate = false;
-                let isPardoned = false;
+                let hits = -1;
                 let potentialHits = null;
 
                 if (p) {
-                    const sel = p.selection || p.forecasts || [];
-                    if (Array.isArray(sel)) {
-                        actuallyPlayed = sel.some(s => s && String(s).trim() !== '' && String(s) !== '-');
-                    }
-                }
-
-                if (actuallyPlayed) {
-                    const sel = p.selection || p.forecasts || [];
-                    isLate = p.late || false;
-                    isPardoned = p.pardoned || false;
-
-                    if (isLate && !isPardoned) {
-                        points = ScoringSystem.calculateScore(0, jDate);
-                        hits = 0;
-                        const ev = ScoringSystem.evaluateForecast(sel, officialResults, jDate);
-                        potentialHits = ev.hits;
-                    } else {
-                        const ev = ScoringSystem.evaluateForecast(sel, officialResults, jDate);
+                    const ev = ScoringSystem.evaluateMember(m, j, p);
+                    if (ev.played) {
                         hits = ev.hits;
                         points = ev.points;
+                        potentialHits = ev.potentialHits;
 
-                        // Lógica PIG eliminada porque el partido 15 ya no suma aciertos en ScoringSystem
-
-                        // Premios (usando los hits ya ajustados por PIG)
-                        if (hits >= minHits) {
-                            const money = (j.prizeRates && j.prizeRates[hits]) || 0;
+                        // Premios (usando los hits ya ajustados)
+                        if (hits >= minHits && ev.prize > 0) {
                             stats[m.id].prizes.push({
                                 jornadaNum: j.number,
                                 hits: hits,
-                                money: money
+                                money: ev.prize
                             });
                         }
                     }
@@ -265,7 +243,7 @@ class ResumenManager {
                     jornadaNum: j.number,
                     dayPoints: points,
                     dayHits: hits,
-                    potentialHits: (isLate && !isPardoned) ? potentialHits : null
+                    potentialHits: potentialHits
                 });
             });
         });

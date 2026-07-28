@@ -206,6 +206,99 @@ const ScoringSystem = {
         const officialHits = (regHits === 14 && p15Hit) ? 15 : regHits;
         const points = this.calculateScore(hits, targetDate);
         return { hits, points, bonus: points - hits, breakdown: null, officialHits };
+    },
+
+    // Centralized evaluation logic for a member's forecast in a jornada
+    evaluateMember: function (member, jornada, pronostico, options = {}) {
+        const result = {
+            played: false,
+            hits: -1,
+            points: 0,
+            bonus: 0,
+            prize: 0,
+            isLate: false,
+            isPardoned: false,
+            potentialHits: null,
+            tempBreakdown: null,
+            pigHit: false,
+            isPig15: false
+        };
+
+        if (!pronostico) return result;
+
+        const sel = pronostico.selection || pronostico.forecasts || [];
+        let actuallyPlayed = Array.isArray(sel) && sel.some(s => s && String(s).trim() !== '' && String(s) !== '-');
+
+        if (!actuallyPlayed) return result;
+
+        result.played = true;
+        result.isLate = pronostico.late || false;
+        result.isPardoned = pronostico.pardoned || false;
+
+        const officialResults = jornada.matches ? jornada.matches.map(m => m.result) : [];
+        const jDate = window.AppUtils ? window.AppUtils.parseDate(jornada.date) : new Date(jornada.date);
+
+        // Check for PIG (Pleno al 15 is index 14)
+        const match15 = jornada.matches && jornada.matches[14];
+        if (match15 && window.AppUtils && window.AppUtils.isPigMatch(match15.home, match15.away)) {
+            result.isPig15 = true;
+        }
+
+        const isReduced = pronostico.isReduced || false;
+        const ev = this.evaluateForecast(sel, officialResults, jDate, { isReduced });
+        result.tempBreakdown = ev.breakdown;
+
+        // Check PIG hit status regardless of late sealing
+        if (result.isPig15) {
+            const rSign15 = this.normalizeSign(officialResults[14]);
+            const pred15 = String(sel[14] || '').trim().toUpperCase();
+            if (pred15 && (pred15 === rSign15 || pred15 === String(officialResults[14]).trim().toUpperCase())) {
+                result.pigHit = true;
+            }
+        }
+
+        // Determine if jornada is finished
+        const filledMatches = jornada.matches ? jornada.matches.filter(m => m.result && m.result.trim() !== '' && m.result.trim() !== '-').length : 0;
+        const now = new Date();
+        const isPastDate = jDate && (now.getTime() - jDate.getTime() > 2 * 24 * 60 * 60 * 1000);
+        const isFinished = (jornada.active === false) || (filledMatches === 15) || isPastDate || options.forceFinished;
+
+        if (result.isLate && !result.isPardoned && isFinished) {
+            result.hits = 0;
+            result.points = this.calculateScore(0, jDate);
+            result.bonus = result.points;
+            result.potentialHits = ev.hits;
+        } else {
+            result.hits = ev.hits;
+            if (isFinished) {
+                result.points = ev.points;
+                result.bonus = ev.bonus;
+            } else {
+                result.points = ev.hits;
+                result.bonus = 0;
+            }
+        }
+
+        // Calculate Prizes
+        const legacyPrizes = jornada.prizeRates || jornada.prizes || {};
+        if (result.tempBreakdown) {
+            Object.keys(result.tempBreakdown).forEach(h => {
+                const count = result.tempBreakdown[h];
+                if (count > 0 && legacyPrizes[h]) {
+                    result.prize += count * legacyPrizes[h];
+                }
+            });
+        } else {
+            let actualMinHits = jornada.minHitsToWin || 10;
+            if (legacyPrizes && Object.keys(legacyPrizes).length > 0) {
+                actualMinHits = Math.min(...Object.keys(legacyPrizes).map(Number));
+            }
+            if (result.hits >= actualMinHits) {
+                result.prize = legacyPrizes[result.hits] || 0;
+            }
+        }
+
+        return result;
     }
 };
 
