@@ -120,6 +120,21 @@ var AppUtils = window.AppUtils || {
     },
 
     /**
+     * Calculates the forecast deadline for a jornada.
+     * Rule: Thursday 17:00 (3 days before the Sunday match).
+     * @param {string|Date} dateStr - The jornada date (Sunday).
+     * @returns {Date|null} The deadline Date object, or null if dateStr is invalid.
+     */
+    calculateDeadline(dateStr) {
+        const d = dateStr instanceof Date ? dateStr : this.parseDate(dateStr);
+        if (!d) return null;
+        const deadline = new Date(d.getTime());
+        deadline.setDate(d.getDate() - 3); // Jueves si la jornada es domingo
+        deadline.setHours(17, 0, 0, 0);
+        return deadline;
+    },
+
+    /**
      * Checks if a team string is likely a 1st Division Team (LaLiga EA)
      * Used for filtering
      */

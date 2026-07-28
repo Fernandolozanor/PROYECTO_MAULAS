@@ -380,10 +380,8 @@ class DashboardManager {
                 const matchDate = AppUtils.parseDate(nextJornadaData.date);
 
                 if (matchDate) {
-                    // Deadline: Thursday 17:00 implies -3 days from Sunday
-                    const deadline = new Date(matchDate);
-                    deadline.setDate(matchDate.getDate() - 3);
-                    deadline.setHours(17, 0, 0, 0);
+                    // Deadline: Thursday 17:00 (centralizado en AppUtils.calculateDeadline)
+                    const deadline = AppUtils.calculateDeadline(matchDate);
 
                     this.startCountdown(deadline);
 
@@ -488,9 +486,7 @@ class DashboardManager {
         if (nextJornadaData && nextJornadaData.date) {
             const matchDate = AppUtils.parseDate(nextJornadaData.date);
             if (matchDate) {
-                const deadline = new Date(matchDate);
-                deadline.setDate(matchDate.getDate() - 3);
-                deadline.setHours(17, 0, 0, 0);
+                const deadline = AppUtils.calculateDeadline(matchDate);
 
                 const now = new Date();
                 const diffMs = deadline.getTime() - now.getTime();

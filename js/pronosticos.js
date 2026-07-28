@@ -1022,13 +1022,7 @@ class PronosticoManager {
     }
 
     calculateDeadline(dateStr) {
-        const d = AppUtils.parseDate(dateStr);
-        if (!d) return null;
-
-        const deadline = new Date(d.getTime());
-        deadline.setDate(d.getDate() - 3);  // 3 días antes (jueves si la jornada es domingo)
-        deadline.setHours(17, 0, 0, 0);
-        return deadline;
+        return window.AppUtils ? window.AppUtils.calculateDeadline(dateStr) : null;
     }
 
     renderSummaryTable() {

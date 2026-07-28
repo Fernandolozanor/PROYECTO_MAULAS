@@ -52,9 +52,9 @@ const Auth = {
                 if (nextJ) {
                     const matchDate = this.parseDate(nextJ.date);
                     if (matchDate) {
-                        const deadline = new Date(matchDate);
-                        deadline.setDate(matchDate.getDate() - 3);
-                        deadline.setHours(17, 0, 0, 0);
+                        const deadline = window.AppUtils
+                            ? window.AppUtils.calculateDeadline(matchDate)
+                            : (() => { const d = new Date(matchDate); d.setDate(matchDate.getDate() - 3); d.setHours(17,0,0,0); return d; })();
 
                         const now = new Date();
                         const diffMs = deadline.getTime() - now.getTime();

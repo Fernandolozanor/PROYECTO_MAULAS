@@ -712,31 +712,16 @@ class QuinielaScraper {
         if (!matches || matches.length === 0) return false;
 
         let count = 0;
-        
-        // Use AppUtils if available (it has the up-to-date Primera keywords)
-        if (window.AppUtils && typeof window.AppUtils.isLaLigaTeam === 'function') {
-            matches.forEach(m => {
-                if (window.AppUtils.isLaLigaTeam(m.home)) count++;
-                if (window.AppUtils.isLaLigaTeam(m.away)) count++;
-            });
-        } else {
-            // Fallback list of 1st Division teams (2026-2027)
-            // Bajan: Real Oviedo, Girona, Mallorca
-            // Suben: Real Racing Club, RC Deportivo, Málaga CF
-            const primeraKeywords = [
-                'REAL MADRID', 'BARCELONA', 'ATLÉTICO', 'AT.MADRID', 'SEVILLA', 'BETIS',
-                'R.SOCIEDAD', 'ATHLETIC', 'ATH.CLUB', 'VALENCIA', 'VILLARREAL', 'OSASUNA',
-                'CELTA', 'RAYO', 'GETAFE', 'ALAVÉS', 'ESPANYOL', 'ELCHE',
-                'LEVANTE', 'BILBAO', 'RACING', 'DEPORTIVO', 'MÁLAGA', 'MALAGA'
-            ];
 
-            matches.forEach(m => {
-                const h = m.home.toUpperCase();
-                const a = m.away.toUpperCase();
-                if (primeraKeywords.some(k => h.includes(k))) count++;
-                if (primeraKeywords.some(k => a.includes(k))) count++;
-            });
+        if (!window.AppUtils || typeof window.AppUtils.isLaLigaTeam !== 'function') {
+            console.warn('[Importer] AppUtils.isLaLigaTeam no disponible. Saltando filtro de Primera.');
+            return true; // Asumir válido para no bloquear la importación
         }
+
+        matches.forEach(m => {
+            if (window.AppUtils.isLaLigaTeam(m.home)) count++;
+            if (window.AppUtils.isLaLigaTeam(m.away)) count++;
+        });
 
         console.log(`[Importer] Found ${count} Primera Division teams in the matches list.`);
         return count >= 5;
