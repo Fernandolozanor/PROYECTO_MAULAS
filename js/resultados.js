@@ -11,11 +11,10 @@ class ResultsManager {
         if (window.DataService) await window.DataService.init();
 
         console.log("ResultsManager: Loading data from Cloud...");
-        this.members = await window.DataService.getAll('members');
-        this.members.sort((a, b) => parseInt(a.id) - parseInt(b.id)); // Global sort by member ID
-        const allJ = await window.DataService.getAll('jornadas');
-        this.jornadas = allJ.filter(j => j.season === AppUtils.activeSeason);
-        this.pronosticos = await window.DataService.getAll('pronosticos');
+        const data = await window.DataService.loadSeasonData();
+        this.members = data.members;
+        this.jornadas = data.jornadas;
+        this.pronosticos = data.pronosticos;
 
         this.calculateAndRender();
     }

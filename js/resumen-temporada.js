@@ -18,11 +18,11 @@ class ResumenManager {
     async init() {
         if (window.DataService) await window.DataService.init();
 
-        this.members = await window.DataService.getAll('members');
-        if (this.members) this.members.sort((a, b) => parseInt(a.id) - parseInt(b.id)); 
-        this.jornadas = await window.DataService.getAll('jornadas');
-        this.pronosticos = await window.DataService.getAll('pronosticos');
-        this.pronosticosExtra = await window.DataService.getAll('pronosticos_extra') || [];
+        const data = await window.DataService.loadSeasonData();
+        this.members = data.members;
+        this.jornadas = data.jornadas;
+        this.pronosticos = data.pronosticos;
+        this.pronosticosExtra = data.pronosticosExtra;
 
         this.jornadas.sort((a, b) => a.number - b.number);
         

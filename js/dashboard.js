@@ -10,16 +10,11 @@ class DashboardManager {
         try {
             if (window.DataService) await window.DataService.init();
 
-            this.members = await window.DataService.getAll('members');
-            if (this.members && Array.isArray(this.members)) {
-                this.members.sort((a, b) => parseInt(a.id) - parseInt(b.id)); // Global sort by member ID
-            } else {
-                this.members = [];
-            }
-            const allJ = await window.DataService.getAll('jornadas');
-            this.jornadas = allJ.filter(j => j.season === AppUtils.activeSeason);
-            this.pronosticos = await window.DataService.getAll('pronosticos');
-            this.pronosticosExtra = await window.DataService.getAll('pronosticos_extra') || [];
+            const data = await window.DataService.loadSeasonData();
+            this.members = data.members;
+            this.jornadas = data.jornadas;
+            this.pronosticos = data.pronosticos;
+            this.pronosticosExtra = data.pronosticosExtra;
 
             // Ensure Rules are loaded
             if (window.ScoringSystem && window.ScoringSystem.getConfig) {

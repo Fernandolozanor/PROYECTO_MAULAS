@@ -241,6 +241,31 @@ class DataService {
         };
         await this.save(this.collections.logs, log);
     }
+
+    // Unified data loader for the active season to prevent redundant Firestore calls across components
+    async loadSeasonData() {
+        const activeSeason = (window.AppUtils && window.AppUtils.activeSeason) || '2026-2027';
+
+        const [members, allJornadas, pronosticos, pronosticosExtra] = await Promise.all([
+            this.getAll('members'),
+            this.getAll('jornadas'),
+            this.getAll('pronosticos'),
+            this.getAll('pronosticos_extra').catch(() => [])
+        ]);
+
+        // Clean & sort members
+        const sortedMembers = (members || []).sort((a, b) => parseInt(a.id) - parseInt(b.id));
+
+        // Filter jornadas by active season
+        const seasonJornadas = (allJornadas || []).filter(j => j.season === activeSeason);
+
+        return {
+            members: sortedMembers,
+            jornadas: seasonJornadas,
+            pronosticos: pronosticos || [],
+            pronosticosExtra: pronosticosExtra || []
+        };
+    }
 }
 
 window.DataService = new DataService();

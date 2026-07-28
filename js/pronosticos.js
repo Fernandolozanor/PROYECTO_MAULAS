@@ -169,12 +169,11 @@ class PronosticoManager {
     async init() {
         if (window.DataService) await window.DataService.init();
 
-        this.members = await window.DataService.getAll('members');
-        this.members.sort((a, b) => parseInt(a.id) - parseInt(b.id)); // Global sort by member ID
-        const allJ = await window.DataService.getAll('jornadas');
-        this.jornadas = allJ.filter(j => j.season === AppUtils.activeSeason);
-        this.pronosticos = await window.DataService.getAll('pronosticos');
-        this.pronosticosExtra = await window.DataService.getAll('pronosticos_extra') || []; // New Collection
+        const data = await window.DataService.loadSeasonData();
+        this.members = data.members;
+        this.jornadas = data.jornadas;
+        this.pronosticos = data.pronosticos;
+        this.pronosticosExtra = data.pronosticosExtra;
 
         this.populateDropdowns();
         this.renderSummaryTable();
