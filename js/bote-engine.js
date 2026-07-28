@@ -1,0 +1,585 @@
+/**
+ * BoteEngine - Lógica de cálculo financiero de la Peña Maulas
+ * ==========================================================
+ * Centraliza las matemáticas del bote para evitar duplicidades
+ * y aligerar el archivo de interfaz de usuario.
+ */
+class BoteEngine {
+    constructor(config = {}) {
+        this.config = config;
+    }
+
+    /**
+     * Calcula todos los movimientos financieros de los socios a lo largo de la temporada.
+     */
+    calculateAllMovements(members, jornadas, pronosticos, pronosticosExtra, repartos, cierresVuelta, ingresos, cashPayments) {
+        const movements = [];
+
+        // Saldos iniciales heredados
+        const initialBalances = {
+            'Alvaro': 0, 'Carlos': 0, 'David Buzón': 0, 'Edu': 0, 'Emilio': 0,
+            'F. Lozano': 0, 'F. Ramirez': 0, 'Heradio': 0, 'JA Valdivieso': 0,
+            'Valdi': 0, 'Javi Mora': 0, 'Juan Antonio': 0, 'Juanan': 0, 'Juanjo': 0, 'Luismi': 0,
+            'Marcelo': 0, 'Martin': 0, 'Rafa': 0, 'Ramon': 0, 'Raul Romera': 0,
+            'Samuel': 0
+        };
+
+        // Pre-cálculo de exenciones por jornada
+        const jornadaExemptions = jornadas.map((j, idx) => {
+            const exemptIds = members.filter(m => {
+                if (idx === 0) return false;
+                const prev = jornadas[idx - 1];
+                return this.getPrizesForMemberJornada(m.id, prev, pronosticos) > 0;
+            }).map(m => m.id);
+            return {
+                id: j.id,
+                exemptIds: exemptIds,
+                payingCount: members.length - exemptIds.length
+            };
+        });
+
+        members.forEach((member, memberIndex) => {
+            const mName = (member.name || '').trim();
+            let boteAcumulado = 0;
+            if (mName) {
+                const norm = (s) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                const entry = Object.entries(initialBalances).find(([k, v]) => norm(k) === norm(mName) || norm(mName).includes(norm(k)) || norm(k).includes(norm(mName)));
+                if (entry) boteAcumulado = entry[1];
+            }
+
+            const mIdStr = member.id ? String(member.id) : '';
+
+            // Línea de tiempo combinada
+            const timeline = [
+                ...jornadas.map(j => ({ type: 'jornada', date: j.date, data: j })),
+                ...repartos.map(r => ({ type: 'reparto', date: r.date, data: r })),
+                ...cierresVuelta.map(c => ({ type: 'cierre_vuelta', date: c.date, data: c }))
+            ].sort((a, b) => {
+                const dA = window.AppUtils.parseDate(a.date) || new Date(0);
+                const dB = window.AppUtils.parseDate(b.date) || new Date(0);
+                return dA - dB;
+            });
+
+            timeline.forEach(event => {
+                if (event.type === 'jornada') {
+                    const jornada = event.data;
+                    const jornadaIndex = jornadas.findIndex(j => j.id === jornada.id);
+
+                    const matchesWithResult = (jornada.matches || []).filter(m => {
+                        const r = String(m.result || '').trim().toLowerCase();
+                        return r !== '' && r !== 'por definir';
+                    });
+                    if (matchesWithResult.length === 0) return;
+
+                    const infoRedist = jornadaExemptions[jornadaIndex];
+                    const pronostico = pronosticos.find(p =>
+                        (p.jId == jornada.id || p.jornadaId == jornada.id) &&
+                        (String(p.mId || p.memberId) === mIdStr)
+                    );
+
+                    const costs = this.calculateJornadaCosts(member.id, members, jornadas, pronosticos, pronosticosExtra, cashPayments, jornada, pronostico, jornadaIndex, infoRedist);
+                    const prizes = this.getPrizesForMemberJornada(member.id, jornada, pronosticos);
+                    const manualIngresos = this.getManualIngresosForJornada(member.id, jornada, ingresos);
+                    const penalties = costs.penalizacionUnos + (costs.penalizacionBajosAciertos || 0) + (costs.penalizacionPIG || 0);
+
+                    const isSelladoInCash = cashPayments.some(cp => String(cp.memberId) === mIdStr && String(cp.jornadaId) === String(jornada.id));
+
+                    const selladoForNeto = isSelladoInCash ? 0 : costs.sellado;
+                    const netoForSocio = manualIngresos - (costs.aportacion + penalties) - selladoForNeto;
+                    boteAcumulado += netoForSocio;
+
+                    let extraPrizes = 0;
+                    if (memberIndex === 0) {
+                        extraPrizes = this.getExtraPrizesForJornada(jornada, pronosticosExtra);
+                    }
+
+                    movements.push({
+                        type: 'jornada',
+                        memberId: member.id,
+                        memberName: window.AppUtils.getMemberName(member),
+                        jornadaId: jornada.id,
+                        jornadaNum: jornada.number,
+                        jornadaDate: jornada.date,
+                        aportacion: costs.aportacion,
+                        costeColumna: costs.columna,
+                        penalizacionUnos: costs.penalizacionUnos,
+                        penalizacionBajosAciertos: costs.penalizacionBajosAciertos,
+                        penalizacionPIG: costs.penalizacionPIG,
+                        sellado: costs.sellado,
+                        premios: prizes,
+                        extraPrizes: extraPrizes,
+                        ingresosManual: manualIngresos,
+                        aciertos: costs.aciertos,
+                        totalIngresos: (manualIngresos + prizes),
+                        totalGastos: (costs.aportacion + penalties),
+                        neto: netoForSocio,
+                        boteAcumulado: boteAcumulado,
+                        exento: costs.exento,
+                        jugaDobles: costs.jugaDobles,
+                        isSelladoInCash: isSelladoInCash,
+                        pennaIn: costs.aportacion + penalties + prizes + extraPrizes,
+                        pennaOut: (isSelladoInCash && costs.sellado < 0) ? Math.abs(costs.sellado) : 0
+                    });
+                } else if (event.type === 'reparto') {
+                    const r = event.data;
+                    if (r.type === 'socios') {
+                        const choice = (r.memberChoices || {})[member.id] || 'bote';
+                        if (choice === 'bote') {
+                            const splitAmount = r.totalAmount / members.length;
+                            boteAcumulado += splitAmount;
+
+                            movements.push({
+                                type: 'reparto',
+                                memberId: member.id,
+                                memberName: window.AppUtils.getMemberName(member),
+                                date: r.date,
+                                description: r.description,
+                                neto: splitAmount,
+                                boteAcumulado: boteAcumulado,
+                                isReparto: true
+                            });
+                        }
+                    }
+                } else if (event.type === 'cierre_vuelta') {
+                    const c = event.data;
+                    const penaltyForMember = (c.penalizaciones || {})[member.id] || 0;
+                    if (penaltyForMember > 0) {
+                        boteAcumulado -= penaltyForMember;
+                        movements.push({
+                            type: 'cierre_vuelta',
+                            memberId: member.id,
+                            memberName: window.AppUtils.getMemberName(member),
+                            date: c.date,
+                            description: c.tipo === 'primera_vuelta' ? 'Penalización 1ª Vuelta' : 'Penalización Fin de Temporada',
+                            neto: -penaltyForMember,
+                            boteAcumulado: boteAcumulado,
+                            isCierreVuelta: true
+                        });
+                    }
+                }
+            });
+        });
+        return movements;
+    }
+
+    calculateJornadaCosts(memberId, members, jornadas, pronosticos, pronosticosExtra, cashPayments, jornada, pronostico, jornadaIndex, infoRedist = null) {
+        const matchesWithResult = (jornada.matches || []).filter(m => {
+            const r = String(m.result || '').trim().toLowerCase();
+            return r !== '' && r !== 'por definir';
+        });
+        const jornadaPlayed = matchesWithResult.length > 0;
+        const jDate = window.AppUtils.parseDate(jornada.date);
+        const numMembers = members.length;
+
+        const costs = {
+            aportacion: 0,
+            columna: 0,
+            dobles: 0,
+            penalizacionUnos: 0,
+            penalizacionBajosAciertos: 0,
+            penalizacionPIG: 0,
+            sellado: 0,
+            aciertos: 0,
+            exento: false,
+            jugaDobles: false,
+            isSustituto: false
+        };
+
+        if (jornada.noSellado) {
+            if (pronostico && jornada.matches) {
+                const currentSelection = pronostico.selection || pronostico.forecast;
+                costs.aciertos = this.calculateAciertos(jornada.matches, currentSelection);
+            }
+            return costs;
+        }
+
+        if (!pronostico) {
+            costs.columna = jornadaPlayed ? this.getHistoricalPrice('costeColumna', jDate) : 0;
+            return costs;
+        }
+
+        const currentSelection = pronostico.selection || pronostico.forecast;
+        if (jornada.matches && currentSelection) {
+            costs.aciertos = this.calculateAciertos(jornada.matches, currentSelection);
+        }
+
+        if (jornadaIndex > 0) {
+            const prevJornada = jornadas[jornadaIndex - 1];
+            const hadPrize = this.getPrizesForMemberJornada(memberId, prevJornada, pronosticos) > 0;
+            if (hadPrize) {
+                costs.exento = true;
+            }
+        }
+
+        const baseColumna = this.getHistoricalPrice('costeColumna', jDate);
+        const baseAportacion = this.getHistoricalPrice('aportacionSemanal', jDate);
+
+        if (costs.exento) {
+            costs.columna = 0;
+            costs.aportacion = 0;
+        } else if (jornadaPlayed) {
+            if (infoRedist && infoRedist.payingCount > 0 && infoRedist.payingCount < numMembers) {
+                const numExempt = numMembers - infoRedist.payingCount;
+                const extraPerExempt = this.getHistoricalPrice('costeExtraExento', jDate) || 0.20;
+                costs.aportacion = baseAportacion + (numExempt * extraPerExempt);
+                costs.columna = baseColumna;
+            } else {
+                costs.aportacion = baseAportacion;
+                costs.columna = baseColumna;
+            }
+        }
+
+        const matchesExtra = pronosticosExtra.filter(p =>
+            (String(p.jId) === String(jornada.id) || String(p.jId) === String(jornada.number))
+        );
+        const hasExtra = matchesExtra.some(p => String(p.mId) === String(memberId));
+
+        if (hasExtra) {
+            costs.jugaDobles = true;
+        } else if (matchesExtra.length === 0 && jornadaIndex > 0) {
+            const prevJornada = jornadas[jornadaIndex - 1];
+            if (this.wasWinnerOfJornada(memberId, prevJornada, members, jornadas, pronosticos)) {
+                costs.jugaDobles = true;
+            }
+        }
+
+        if (costs.exento) return costs;
+
+        if (jornadaPlayed && currentSelection && Array.isArray(currentSelection)) {
+            const first14 = currentSelection.slice(0, 14);
+            const numUnos = first14.filter(f => f === '1').length;
+            costs.penalizacionUnos = this.calculateHistoricalPenalty('unos', numUnos, jDate);
+
+            if (costs.aciertos <= 3) {
+                costs.penalizacionBajosAciertos = this.calculateHistoricalPenalty('bajos_aciertos', costs.aciertos, jDate);
+            }
+
+            let pigIdx = -1;
+            if (jornada.pigMatchIndex !== undefined) {
+                pigIdx = jornada.pigMatchIndex;
+            } else {
+                pigIdx = (jornada.matches || []).slice(0, 15).findIndex(m => this.checkIsPIG(m));
+            }
+
+            if (pigIdx !== -1) {
+                const pigMatch = jornada.matches[pigIdx];
+                if (pigMatch && pigMatch.result && pigMatch.result !== '' && pigMatch.result.toLowerCase() !== 'por definir') {
+                    const resultSign = this.normalizeSign(pigMatch.result);
+                    const prediction = String(currentSelection[pigIdx] || '').trim().toUpperCase();
+                    if (resultSign !== prediction) {
+                        costs.penalizacionPIG = this.calculateHistoricalPenalty('pig', null, jDate);
+                    }
+                }
+            }
+        }
+
+        if (costs.exento) {
+            costs.penalizacionUnos = 0;
+            costs.penalizacionBajosAciertos = 0;
+            costs.penalizacionPIG = 0;
+        }
+
+        if (jornada.noSellado) {
+            costs.sellado = 0;
+            return costs;
+        }
+
+        let isMaula = false;
+        if (jornadaIndex > 0) {
+            const prevJornada = jornadas[jornadaIndex - 1];
+            if (this.wasLoserOfJornada(memberId, prevJornada, members, jornadas, pronosticos)) {
+                isMaula = true;
+            }
+        } else if (jornada.number === 1) {
+            const member = members.find(m => String(m.id) === String(memberId));
+            if (member && member.name && member.name.toLowerCase().includes('luismi')) {
+                isMaula = true;
+            }
+        }
+
+        const sustitutoId = jornada.sustitutoSellado;
+        if (sustitutoId) {
+            if (String(memberId) === String(sustitutoId)) {
+                isMaula = true;
+                costs.isSustituto = true;
+            } else if (isMaula) {
+                isMaula = false;
+            }
+        }
+
+        if (isMaula) {
+            const cCol = this.getHistoricalPrice('costeColumna', jDate);
+            const cDob = this.getHistoricalPrice('costeDobles', jDate);
+
+            const extras = pronosticosExtra.filter(p => {
+                const pJ = String(p.jId || p.jornadaId || '');
+                return pJ === String(jornada.id) || pJ === String(jornada.number);
+            });
+            const numExtras = extras.length > 0 ? extras.length : 1;
+            const totalCDob = numExtras * cDob;
+
+            costs.sellado = -((numMembers * cCol) + totalCDob);
+        }
+
+        return costs;
+    }
+
+    getHistoricalPrice(key, date) {
+        if (!date || isNaN(date.getTime())) return this.config[key] || 0;
+        if (!this.config.history || !this.config.history[key]) return this.config[key] || 0;
+        const settings = this.config.history[key].filter(h => new Date(h.date) <= date).sort((a, b) => new Date(b.date) - new Date(a.date));
+        return settings.length > 0 ? settings[0].value : (this.config[key] || 0);
+    }
+
+    calculateHistoricalPenalty(type, value, date) {
+        if (!date || isNaN(date.getTime())) {
+            if (type === 'unos' && value >= 10) return this.calculatePenalizacionUnos(value);
+            if (type === 'pig') return this.config.penalizacionPIG || 1.00;
+            if (type === 'bajos_aciertos') return { 0: 1.0, 1: 0.8, 2: 0.6, 3: 0.4 }[value] || 0;
+            return 0;
+        }
+        const history = this.config.penalties_history || {};
+        const settings = history[type] || [];
+
+        let setting = settings.filter(s => new Date(s.date) <= date)
+            .sort((a, b) => new Date(b.date) - new Date(a.date))[0];
+
+        if (!setting) {
+            setting = settings.sort((a, b) => new Date(a.date) - new Date(b.date))[0];
+            if (!setting) {
+                if (type === 'unos' && value >= 10) return this.calculatePenalizacionUnos(value);
+                if (type === 'pig') return this.config.penalizacionPIG || 1.00;
+                if (type === 'bajos_aciertos') {
+                    return { 0: 1.0, 1: 0.8, 2: 0.6, 3: 0.4 }[value] || 0;
+                }
+                return 0;
+            }
+        }
+
+        if (type === 'unos' || type === 'bajos_aciertos') {
+            if (setting.values && setting.values[value] !== undefined) {
+                return parseFloat(setting.values[value]);
+            }
+            return 0;
+        }
+        if (type === 'pig') {
+            return setting.value !== undefined ? parseFloat(setting.value) : 1.00;
+        }
+        return 0;
+    }
+
+    calculatePenalizacionUnos(numUnos) {
+        if (numUnos < 10) return 0;
+        const penalties = { 10: 1.10, 11: 1.20, 12: 1.30, 13: 1.50, 14: 2.00 };
+        return penalties[numUnos] || 0;
+    }
+
+    getPrizesForMemberJornada(memberId, jornada, pronosticos) {
+        if (!jornada.prizes || typeof jornada.prizes !== 'object') return 0;
+
+        const mIdStr = String(memberId);
+        const pronostico = pronosticos.find(p => {
+            const pJ = String(p.jId || p.jornadaId || '');
+            const matchJ = (pJ === String(jornada.id) || pJ === String(jornada.number));
+            const matchM = (String(p.mId || p.memberId) === mIdStr);
+            return matchJ && matchM;
+        });
+
+        if (!pronostico) return 0;
+
+        const selection = pronostico.selection || pronostico.forecast;
+        const aciertos = this.calculateAciertos(jornada.matches, selection);
+
+        const prizes = jornada.prizes;
+        const prizeVal = prizes[aciertos] || prizes[String(aciertos)] || 0;
+
+        return typeof prizeVal === 'number' ? prizeVal : parseFloat(prizeVal || 0);
+    }
+
+    getManualIngresosForJornada(memberId, jornada, ingresos) {
+        const jId = String(jornada.id);
+        const mId = String(memberId);
+        return ingresos
+            .filter(i => String(i.jornadaId || i.jId) === jId && String(i.memberId || i.mId) === mId)
+            .reduce((sum, i) => sum + parseFloat(i.amount || 0), 0);
+    }
+
+    getExtraPrizesForJornada(jornada, pronosticosExtra) {
+        if (!jornada.prizes || typeof jornada.prizes !== 'object') return 0;
+        if (!pronosticosExtra) return 0;
+        if (!window.ScoringSystem) return 0;
+
+        const extras = pronosticosExtra.filter(p => {
+            const pJ = String(p.jId || p.jornadaId || '');
+            return pJ === String(jornada.id) || pJ === String(jornada.number);
+        });
+
+        const jDate = window.AppUtils ? window.AppUtils.parseDate(jornada.date) : new Date(jornada.date);
+        const officialResults = (jornada.matches || []).map(m => m.result);
+        const legacyPrizes = jornada.prizes || {};
+
+        let totalExtraPrize = 0;
+        extras.forEach(p => {
+            const selection = p.selection || p.forecast;
+            if (!selection || !Array.isArray(selection)) return;
+
+            const doubleCount = selection.filter((s, i) => i < 14 && s && s.length > 1).length;
+            const isReduced = p.isReduced || (doubleCount === 7);
+
+            const ev = window.ScoringSystem.evaluateForecast(selection, officialResults, jDate, { isReduced });
+
+            if (ev && ev.breakdown) {
+                Object.keys(ev.breakdown).forEach(h => {
+                    const count = ev.breakdown[h];
+                    if (count > 0 && legacyPrizes[h]) {
+                        totalExtraPrize += count * parseFloat(legacyPrizes[h] || 0);
+                    }
+                });
+            } else if (ev) {
+                const cat = ev.officialHits;
+                let actualMinHits = jornada.minHitsToWin || 10;
+                if (legacyPrizes && Object.keys(legacyPrizes).length > 0) {
+                    actualMinHits = Math.min(...Object.keys(legacyPrizes).map(Number));
+                }
+                if (cat >= actualMinHits) {
+                    totalExtraPrize += parseFloat(legacyPrizes[cat] || 0);
+                }
+            }
+        });
+
+        return totalExtraPrize;
+    }
+
+    wasWinnerOfJornada(memberId, prevJornada, members, jornadas, pronosticos) {
+        if (!prevJornada.matches || prevJornada.matches.length < 15 || prevJornada.matches.some(m => !m.result || m.result === '' || m.result === 'por definir')) {
+            return false;
+        }
+
+        const jornadaPronosticos = pronosticos.filter(p =>
+            (String(p.jId || p.jornadaId) === String(prevJornada.id) ||
+                parseInt(p.jId || p.jornadaId) === prevJornada.number)
+        );
+        if (jornadaPronosticos.length === 0) return false;
+
+        const scores = jornadaPronosticos.map(p => {
+            const currentSelection = p.selection || p.forecast;
+            const aciertos = this.calculateAciertos(prevJornada.matches, currentSelection);
+            const points = this.calculatePoints(aciertos, p);
+            return { memberId: String(p.memberId || p.mId), points: points };
+        });
+
+        const maxPoints = Math.max(...scores.map(s => s.points));
+        const winners = scores.filter(s => s.points === maxPoints);
+
+        if (winners.length === 1) return String(winners[0].memberId) === String(memberId);
+
+        const finalWinnerId = this.resolveTie(winners.map(w => w.memberId), prevJornada.number - 1, 'max', jornadas, pronosticos);
+        return String(finalWinnerId) === String(memberId);
+    }
+
+    wasLoserOfJornada(memberId, prevJornada, members, jornadas, pronosticos) {
+        if (!prevJornada.matches || prevJornada.matches.length < 15 || prevJornada.matches.some(m => !m.result || m.result === '' || m.result === 'por definir')) {
+            return false;
+        }
+
+        const jornadaPronosticos = pronosticos.filter(p => (p.jId === prevJornada.id || p.jornadaId === prevJornada.id));
+        if (jornadaPronosticos.length === 0) return false;
+
+        const scores = jornadaPronosticos.map(p => {
+            const currentSelection = p.selection || p.forecast;
+            const aciertos = this.calculateAciertos(prevJornada.matches, currentSelection);
+            const points = this.calculatePoints(aciertos, p);
+            return { memberId: p.memberId || p.mId, points: points };
+        });
+
+        const minPoints = Math.min(...scores.map(s => s.points));
+        const losers = scores.filter(s => s.points === minPoints);
+
+        if (losers.length === 1) return losers[0].memberId === memberId;
+
+        const finalLoserId = this.resolveTie(losers.map(l => l.memberId), prevJornada.number - 1, 'min', jornadas, pronosticos);
+        return finalLoserId === memberId;
+    }
+
+    resolveTie(memberIds, jornadaNum, type, jornadas, pronosticos) {
+        if (memberIds.length <= 1 || jornadaNum <= 0) return memberIds[0];
+
+        const prevJornada = jornadas.find(j => j.number === jornadaNum);
+        if (!prevJornada) return this.resolveTie(memberIds, jornadaNum - 1, type, jornadas, pronosticos);
+
+        const scores = memberIds.map(mId => {
+            const pronostico = pronosticos.find(p => (p.jId === prevJornada.id || p.jornadaId === prevJornada.id) && (p.mId === mId || p.memberId === mId));
+            if (!pronostico) return { mId, points: 0 };
+            const currentSelection = pronostico.selection || pronostico.forecast;
+            const aciertos = this.calculateAciertos(prevJornada.matches, currentSelection);
+            const points = this.calculatePoints(aciertos, pronostico);
+            return { mId, points };
+        });
+
+        const targetPoints = (type === 'max') ? Math.max(...scores.map(s => s.points)) : Math.min(...scores.map(s => s.points));
+        const survivors = scores.filter(s => s.points === targetPoints).map(s => s.mId);
+
+        if (survivors.length === 1) return survivors[0];
+        return this.resolveTie(survivors, jornadaNum - 1, type, jornadas, pronosticos);
+    }
+
+    calculatePoints(aciertos, pronostico) {
+        let points = aciertos;
+        const selection = pronostico.selection || pronostico.forecast;
+
+        if (aciertos <= 3) points -= (4 - aciertos);
+        if (pronostico.isLate && !pronostico.pardoned) points -= 2;
+
+        if (selection && Array.isArray(selection)) {
+            const numUnos = selection.slice(0, 14).filter(f => f === '1').length;
+            if (numUnos >= 10) points -= 1;
+        }
+
+        return points;
+    }
+
+    calculateAciertos(matches, forecast) {
+        if (!matches || !forecast) return 0;
+        let aciertos = 0;
+        const limit = Math.min(15, matches.length, forecast.length);
+
+        for (let i = 0; i < limit; i++) {
+            const match = matches[i];
+            const pred = String(forecast[i] || '').trim().toUpperCase();
+
+            if (!match.result || match.result === '' || match.result.toLowerCase() === 'por definir') continue;
+            if (i === 14) continue; // El partido 15 no suma aciertos ordinarios
+
+            const rSign = this.normalizeSign(match.result);
+            if (pred.includes(rSign)) aciertos++;
+        }
+        return aciertos;
+    }
+
+    checkIsPIG(match) {
+        if (!match || !match.home || !match.away) return false;
+        const pigTeams = ['real madrid', 'at. madrid', 'barcelona', 'fc barcelona', 'atlético de madrid', 'atlético'];
+        const norm = (s) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
+        const h = norm(match.home);
+        const a = norm(match.away);
+        return pigTeams.some(t => h.includes(norm(t))) && pigTeams.some(t => a.includes(norm(t)));
+    }
+
+    normalizeSign(res) {
+        if (!res) return '';
+        const r = String(res).trim().toUpperCase();
+        if (r === '1' || r === 'X' || r === '2') return r;
+        if (r.includes('-')) {
+            const parts = r.split('-');
+            const val = (s) => (s === 'M' || s === 'M+' ? 3 : parseInt(s) || 0);
+            const home = val(parts[0]);
+            const away = val(parts[1]);
+            if (home > away) return '1';
+            if (home < away) return '2';
+            return 'X';
+        }
+        return r;
+    }
+}
+
+window.BoteEngine = BoteEngine;

@@ -25,6 +25,7 @@ class BoteManager {
         };
         this.cashPayments = []; // New - Tracks sellados paid in cash
         this.repartos = []; // New - Tracks profit distributions
+        this.engine = new BoteEngine(this.config);
         this.checkIsPIG = (m) => {
             if (!m) return false;
             const h = (m.home || '').toLowerCase();
@@ -130,6 +131,7 @@ class BoteManager {
         if (boteConfig) {
             this.config = { ...this.config, ...boteConfig };
         }
+        if (this.engine) this.engine.config = this.config;
     }
 
     async saveConfig() {
@@ -137,6 +139,7 @@ class BoteManager {
             id: 'bote_config',
             ...this.config
         });
+        if (this.engine) this.engine.config = this.config;
     }
 
     populateSociosDropdown() {
@@ -153,720 +156,72 @@ class BoteManager {
             });
     }
 
-    /**
-     * Calculate all movements for all members across all jornadas
-     */
     calculateAllMovements() {
-        const movements = [];
-
-        const initialBalances = {
-            'Alvaro': 0, 'Carlos': 0, 'David Buzón': 0, 'Edu': 0, 'Emilio': 0,
-            'F. Lozano': 0, 'F. Ramirez': 0, 'Heradio': 0, 'JA Valdivieso': 0,
-            'Valdi': 0, 'Javi Mora': 0, 'Juan Antonio': 0, 'Juanan': 0, 'Juanjo': 0, 'Luismi': 0,
-            'Marcelo': 0, 'Martin': 0, 'Rafa': 0, 'Ramon': 0, 'Raul Romera': 0,
-            'Samuel': 0
-        };
-
-        // Pre-calculate exemptions per jornada
-        const jornadaExemptions = this.jornadas.map((j, idx) => {
-            const exemptIds = this.members.filter(m => {
-                if (idx === 0) return false;
-                const prev = this.jornadas[idx - 1];
-                return this.getPrizesForMemberJornada(m.id, prev) > 0;
-            }).map(m => m.id);
-            return {
-                id: j.id,
-                exemptIds: exemptIds,
-                payingCount: this.members.length - exemptIds.length
-            };
-        });
-
-        this.members.forEach((member, memberIndex) => {
-            const mName = (member.name || '').trim();
-            let boteAcumulado = 0;
-            if (mName) {
-                const norm = (s) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-                const entry = Object.entries(initialBalances).find(([k, v]) => norm(k) === norm(mName) || norm(mName).includes(norm(k)) || norm(k).includes(norm(mName)));
-                if (entry) boteAcumulado = entry[1];
-            }
-
-            const mIdStr = member.id ? String(member.id) : '';
-
-            // Combinar jornadas y repartos en una línea de tiempo
-            const timeline = [
-                ...this.jornadas.map(j => ({ type: 'jornada', date: j.date, data: j })),
-                ...this.repartos.map(r => ({ type: 'reparto', date: r.date, data: r })),
-                ...this.cierresVuelta.map(c => ({ type: 'cierre_vuelta', date: c.date, data: c }))
-            ].sort((a, b) => {
-                const dA = window.AppUtils.parseDate(a.date) || new Date(0);
-                const dB = window.AppUtils.parseDate(b.date) || new Date(0);
-                return dA - dB;
-            });
-
-            timeline.forEach(event => {
-                if (event.type === 'jornada') {
-                    const jornada = event.data;
-                    const jornadaIndex = this.jornadas.findIndex(j => j.id === jornada.id);
-
-                    const matchesWithResult = (jornada.matches || []).filter(m => {
-                        const r = String(m.result || '').trim().toLowerCase();
-                        return r !== '' && r !== 'por definir';
-                    });
-                    if (matchesWithResult.length === 0) return;
-
-                    const infoRedist = jornadaExemptions[jornadaIndex];
-                    const pronostico = this.pronosticos.find(p =>
-                        (p.jId == jornada.id || p.jornadaId == jornada.id) &&
-                        (String(p.mId || p.memberId) === mIdStr)
-                    );
-
-                    const costs = this.calculateJornadaCosts(member.id, jornada, pronostico, jornadaIndex, infoRedist);
-                    const prizes = this.getPrizesForMemberJornada(member.id, jornada);
-                    const manualIngresos = this.getManualIngresosForJornada(member.id, jornada);
-                    const penalties = costs.penalizacionUnos + (costs.penalizacionBajosAciertos || 0) + (costs.penalizacionPIG || 0);
-
-                    const isSelladoInCash = this.cashPayments.some(cp => String(cp.memberId) === mIdStr && String(cp.jornadaId) === String(jornada.id));
-
-                    // NEW LOGIC: Prizes do NOT go to the individual member's bote
-                    const selladoForNeto = isSelladoInCash ? 0 : costs.sellado;
-                    const netoForSocio = manualIngresos - (costs.aportacion + penalties) - selladoForNeto;
-                    boteAcumulado += netoForSocio;
-
-                    // Extra prizes (Doubles Column) are counted once per jornada in the Peña's summary
-                    let extraPrizes = 0;
-                    if (memberIndex === 0) {
-                        extraPrizes = this.getExtraPrizesForJornada(jornada);
-                    }
-
-                    movements.push({
-                        type: 'jornada',
-                        memberId: member.id,
-                        memberName: window.AppUtils.getMemberName(member),
-                        jornadaId: jornada.id,
-                        jornadaNum: jornada.number,
-                        jornadaDate: jornada.date,
-                        aportacion: costs.aportacion,
-                        costeColumna: costs.columna,
-                        penalizacionUnos: costs.penalizacionUnos,
-                        penalizacionBajosAciertos: costs.penalizacionBajosAciertos,
-                        penalizacionPIG: costs.penalizacionPIG,
-                        sellado: costs.sellado,
-                        premios: prizes,
-                        extraPrizes: extraPrizes,
-                        ingresosManual: manualIngresos,
-                        aciertos: costs.aciertos,
-                        totalIngresos: (manualIngresos + prizes),
-                        totalGastos: (costs.aportacion + penalties), // User pays this
-                        neto: netoForSocio,
-                        boteAcumulado: boteAcumulado,
-                        exento: costs.exento,
-                        jugaDobles: costs.jugaDobles,
-                        isSelladoInCash: isSelladoInCash,
-                        pennaIn: costs.aportacion + penalties + prizes + extraPrizes,
-                        // Fix: pennaOut should track reimbursements AND general expenses logic is separate. 
-                        // But for member movement, pennaOut is only relevant if they receive cash.
-                        pennaOut: (isSelladoInCash && costs.sellado < 0) ? Math.abs(costs.sellado) : 0
-                    });
-                } else if (event.type === 'reparto') {
-                    const r = event.data;
-                    if (r.type === 'socios') {
-                        const choice = (r.memberChoices || {})[member.id] || 'bote';
-                        if (choice === 'bote') {
-                            const splitAmount = r.totalAmount / this.members.length;
-                            boteAcumulado += splitAmount;
-
-                            // We record this internally to update the member's historical line
-                            movements.push({
-                                type: 'reparto',
-                                memberId: member.id,
-                                memberName: window.AppUtils.getMemberName(member),
-                                date: r.date,
-                                description: r.description,
-                                neto: splitAmount,
-                                boteAcumulado: boteAcumulado,
-                                isReparto: true
-                            });
-                        }
-                    }
-                } else if (event.type === 'cierre_vuelta') {
-                    const c = event.data;
-                    const penaltyForMember = (c.penalizaciones || {})[member.id] || 0;
-                    if (penaltyForMember > 0) {
-                        boteAcumulado -= penaltyForMember;
-                        movements.push({
-                            type: 'cierre_vuelta',
-                            memberId: member.id,
-                            memberName: window.AppUtils.getMemberName(member),
-                            date: c.date,
-                            description: c.tipo === 'primera_vuelta' ? 'Penalización 1ª Vuelta' : 'Penalización Fin de Temporada',
-                            neto: -penaltyForMember,
-                            boteAcumulado: boteAcumulado,
-                            isCierreVuelta: true
-                        });
-                    }
-                }
-            });
-        });
-        return movements;
+        return this.engine.calculateAllMovements(
+            this.members,
+            this.jornadas,
+            this.pronosticos,
+            this.pronosticosExtra,
+            this.repartos,
+            this.cierresVuelta,
+            this.ingresos,
+            this.cashPayments
+        );
     }
 
-    /**
-     * Calculate costs for a specific member in a specific jornada
-     */
     calculateJornadaCosts(memberId, jornada, pronostico, jornadaIndex, infoRedist = null) {
-        // A jornada is considered "played" if at least one match has a result
-        const matchesWithResult = (jornada.matches || []).filter(m => {
-            const r = String(m.result || '').trim().toLowerCase();
-            return r !== '' && r !== 'por definir';
-        });
-        const jornadaPlayed = matchesWithResult.length > 0;
-
-        const jDate = window.AppUtils.parseDate(jornada.date);
-        const numMembers = this.members.length;
-
-        const costs = {
-            aportacion: 0,
-            columna: 0,
-            dobles: 0,
-            penalizacionUnos: 0,
-            penalizacionBajosAciertos: 0,
-            penalizacionPIG: 0,
-            sellado: 0,
-            aciertos: 0,
-            exento: false,
-            jugaDobles: false,
-            isSustituto: false // Track if this member is substituting the original sealer
-        };
-
-        // If jornada is not sealed, NO COSTS apply
-        if (jornada.noSellado) {
-            // We still might want to calculate hits (aciertos) for stats?
-            // User just mentioned "gasto".
-            // If not sealed, maybe hits are irrelevant too or maybe just for fun.
-            // But definitely 0 money.
-            if (pronostico && jornada.matches) {
-                const currentSelection = pronostico.selection || pronostico.forecast;
-                costs.aciertos = this.calculateAciertos(jornada.matches, currentSelection);
-            }
-            return costs;
-        }
-
-        if (!pronostico) {
-            costs.columna = jornadaPlayed ? this.getHistoricalPrice('costeColumna', jDate) : 0;
-            return costs;
-        }
-
-        // Calculate hits
-        const currentSelection = pronostico.selection || pronostico.forecast;
-        if (jornada.matches && currentSelection) {
-            costs.aciertos = this.calculateAciertos(jornada.matches, currentSelection);
-        }
-
-        // Check exemption
-        if (jornadaIndex > 0) {
-            const prevJornada = this.jornadas[jornadaIndex - 1];
-            const hadPrize = this.getPrizesForMemberJornada(memberId, prevJornada) > 0;
-            if (hadPrize) {
-                costs.exento = true;
-            }
-        }
-
-        const baseColumna = this.getHistoricalPrice('costeColumna', jDate);
-        const baseAportacion = this.getHistoricalPrice('aportacionSemanal', jDate);
-
-        if (costs.exento) {
-            costs.columna = 0;
-            costs.aportacion = 0;
-        } else if (jornadaPlayed) {
-            // LÓGICA DE SOBRECOSTE POR EXENTOS:
-            // Por cada socio exento, el resto paga un extra fijo (e.g. 0.20€).
-            if (infoRedist && infoRedist.payingCount > 0 && infoRedist.payingCount < numMembers) {
-                const numExempt = numMembers - infoRedist.payingCount;
-                const extraPerExempt = this.getHistoricalPrice('costeExtraExento', jDate) || 0.20;
-
-                costs.aportacion = baseAportacion + (numExempt * extraPerExempt);
-                // Costs column remains base? Usually 'columna' tracks the base cost of playing.
-                // But the user pays 'aportacion'.
-                costs.columna = baseColumna;
-            } else {
-                costs.aportacion = baseAportacion;
-                costs.columna = baseColumna;
-            }
-        }
-
-        // Plays doubles if there is a recorded pronostico_extra for this member/jornada
-        const matchesExtra = this.pronosticosExtra.filter(p =>
-            (String(p.jId) === String(jornada.id) || String(p.jId) === String(jornada.number))
+        return this.engine.calculateJornadaCosts(
+            memberId,
+            this.members,
+            this.jornadas,
+            this.pronosticos,
+            this.pronosticosExtra,
+            this.cashPayments,
+            jornada,
+            pronostico,
+            jornadaIndex,
+            infoRedist
         );
-        const hasExtra = matchesExtra.some(p => String(p.mId) === String(memberId));
-
-        if (hasExtra) {
-            costs.jugaDobles = true;
-        } else if (matchesExtra.length === 0 && jornadaIndex > 0) {
-            // Fallback: Check if member won previous jornada (historical logic)
-            // ONLY if NO extra columns are recorded for anyone in this jornada
-            const prevJornada = this.jornadas[jornadaIndex - 1];
-            if (this.wasWinnerOfJornada(memberId, prevJornada)) {
-                costs.jugaDobles = true;
-            }
-        }
-
-        // Do not calculate penalties if exempt
-        if (costs.exento) return costs;
-
-        // Penalties
-        if (jornadaPlayed && currentSelection && Array.isArray(currentSelection)) {
-            // 1. Unos
-            const first14 = currentSelection.slice(0, 14);
-            const numUnos = first14.filter(f => f === '1').length;
-            costs.penalizacionUnos = this.calculateHistoricalPenalty('unos', numUnos, jDate);
-
-            // 2. Low Hits (0-3)
-            if (costs.aciertos <= 3) {
-                costs.penalizacionBajosAciertos = this.calculateHistoricalPenalty('bajos_aciertos', costs.aciertos, jDate);
-            }
-
-            // 3. PIG Detection
-            let pigIdx = -1;
-            if (jornada.pigMatchIndex !== undefined) {
-                pigIdx = jornada.pigMatchIndex;
-            } else {
-                pigIdx = (jornada.matches || []).slice(0, 15).findIndex(m => this.checkIsPIG(m));
-            }
-
-            if (pigIdx !== -1) {
-                const pigMatch = jornada.matches[pigIdx];
-                if (pigMatch && pigMatch.result && pigMatch.result !== '' && pigMatch.result.toLowerCase() !== 'por definir') {
-                    const resultSign = this.normalizeSign(pigMatch.result);
-                    const prediction = String(currentSelection[pigIdx] || '').trim().toUpperCase();
-                    if (resultSign !== prediction) {
-                        costs.penalizacionPIG = this.calculateHistoricalPenalty('pig', null, jDate);
-                    }
-                }
-            }
-        }
-
-        // Apply total exemption if applicable
-        if (costs.exento) {
-            costs.penalizacionUnos = 0;
-            costs.penalizacionBajosAciertos = 0;
-            costs.penalizacionPIG = 0;
-        }
-
-        // check if jornada is NOT sealed
-        if (jornada.noSellado) {
-            // If jornada is explicitly marked as 'noSellado', then NO sellado cost applies to anyone
-            costs.sellado = 0;
-            return costs;
-        }
-
-        // Sellado Reimbursement
-        let isMaula = false;
-        let originalMaulaId = null;
-
-        if (jornadaIndex > 0) {
-            const prevJornada = this.jornadas[jornadaIndex - 1];
-            if (this.wasLoserOfJornada(memberId, prevJornada)) {
-                isMaula = true;
-                originalMaulaId = memberId;
-            } else {
-                // Check if I was the loser but someone else is substituting me
-                // We need to know who was the loser first.
-                // This logic checks if CURRENT member is Maula.
-                // We need to invert: Find who WAS maula, check if substituted.
-            }
-        } else if (jornada.number === 1) {
-            // Manual override for J1: Luismi sealed it (J0 maula)
-            const member = this.members.find(m => String(m.id) === String(memberId));
-            if (member && member.name && member.name.toLowerCase().includes('luismi')) {
-                isMaula = true;
-                originalMaulaId = memberId;
-            }
-        }
-
-        // Logic for Substitution
-        // If jornada has 'sustitutoSellado' field with a memberId
-        const sustitutoId = jornada.sustitutoSellado;
-        if (sustitutoId) {
-            // If there is a substitute defined
-            if (String(memberId) === String(sustitutoId)) {
-                // I am the substitute, I pay the sellado (get reimbursed negative cost)
-                isMaula = true;
-                costs.isSustituto = true;
-            } else if (isMaula) {
-                // I WAS the maula, but I am being substituted. I do NOT pay.
-                isMaula = false;
-            }
-        }
-
-        if (isMaula) {
-            const cCol = this.getHistoricalPrice('costeColumna', jDate);
-            const cDob = this.getHistoricalPrice('costeDobles', jDate); // 12.00
-
-            // Recalculate Total Cost based on actual playing members
-            // Original logic: (numSocios * cCol) + cDob.
-            // Correct logic: Sum of all 'columna' costs of all members + 'dobles' (usually 1, unless defined otherwise)
-            // But we are inside 'calculateJornadaCosts' for ONE member. We can't sum others here easily without circular dep or passing full info.
-            // However, 'numSocios' is constant? No, 'payingCount' varies but cost is redistributed so TOTAL is constant.
-            // (NumMembers * BasePrice) is the Total Cost of Columns.
-            // Exemption logic maintains Total Revenue constant?
-            // "Cuando un socio queda exento, ... ese coste se reparte".
-            // So Total Collected = NumMembers * BasePrice.
-            // So Sellado Cost = (NumMembers * BasePrice) + DoublesPrice.
-
-            // J1 Fix: User reported Coste Quinielas 26.25 but displayed 14.25
-            // 20 members? 20 * 0.75 = 15.00. + 12.00 (Dobles) = 27.00?
-            // User said 26.25. Maybe 19 members? 19 * 0.75 = 14.25. + 12 = 26.25.
-            // So logic (numSocios * cCol) + cDob is correct IF numSocios is correct.
-
-            // Detection of multiple Double columns (Quinielas de dobles)
-            const extras = this.pronosticosExtra.filter(p => {
-                const pJ = String(p.jId || p.jornadaId || '');
-                return pJ === String(jornada.id) || pJ === String(jornada.number);
-            });
-            const numExtras = extras.length > 0 ? extras.length : 1;
-            const totalCDob = numExtras * cDob;
-
-            costs.sellado = -((numMembers * cCol) + totalCDob);
-        }
-
-        return costs;
     }
 
     getHistoricalPrice(key, date) {
-        if (!date || isNaN(date.getTime())) return this.config[key] || 0;
-        if (!this.config.history || !this.config.history[key]) return this.config[key] || 0;
-        const settings = this.config.history[key].filter(h => new Date(h.date) <= date).sort((a, b) => new Date(b.date) - new Date(a.date));
-        return settings.length > 0 ? settings[0].value : (this.config[key] || 0);
+        return this.engine.getHistoricalPrice(key, date);
     }
 
     calculateHistoricalPenalty(type, value, date) {
-        if (!date || isNaN(date.getTime())) {
-            // Fallback for null dates
-            if (type === 'unos' && value >= 10) return this.calculatePenalizacionUnos(value);
-            if (type === 'pig') return this.config.penalizacionPIG || 1.00;
-            if (type === 'bajos_aciertos') return { 0: 1.0, 1: 0.8, 2: 0.6, 3: 0.4 }[value] || 0;
-            return 0;
-        }
-        const history = this.config.penalties_history || {};
-        const settings = history[type] || [];
-
-        let setting = settings.filter(s => new Date(s.date) <= date)
-            .sort((a, b) => new Date(b.date) - new Date(a.date))[0];
-
-        // If no past setting, fallback to earliest or current setup to ensure penalties SUM UP
-        if (!setting) {
-            setting = settings.sort((a, b) => new Date(a.date) - new Date(b.date))[0];
-            if (!setting) {
-                // Return default values from current config if history is empty
-                if (type === 'unos' && value >= 10) return this.calculatePenalizacionUnos(value);
-                if (type === 'pig') return this.config.penalizacionPIG || 1.00;
-                if (type === 'bajos_aciertos') {
-                    // This is tricky as it's an object in config
-                    const pens = { 0: 1.0, 1: 0.8, 2: 0.6, 3: 0.4 };
-                    return pens[value] || 0;
-                }
-                return 0;
-            }
-        }
-
-        if (type === 'unos' || type === 'bajos_aciertos') {
-            if (setting.values && setting.values[value] !== undefined) {
-                return parseFloat(setting.values[value]);
-            }
-            return 0; // If defined in config but value is missing for this int, assume 0
-        }
-        if (type === 'pig') {
-            return setting.value !== undefined ? parseFloat(setting.value) : 1.00;
-        }
-        return 0;
+        return this.engine.calculateHistoricalPenalty(type, value, date);
     }
 
-    /**
-     * Calculate penalty for number of 1s
-     */
     calculatePenalizacionUnos(numUnos) {
-        if (numUnos < 10) return 0;
-
-        const history = this.config.penalties_history || {};
-        const date = new Date(); // Current date for live calc if no jornada date provided? 
-        // Note: This is a fallback helper. Ideally we use calculateHistoricalPenalty.
-
-        const penalties = {
-            10: 1.10,
-            11: 1.20,
-            12: 1.30,
-            13: 1.50,
-            14: 2.00,
-            15: 3.00
-        };
-
-        return penalties[numUnos] || 0;
+        return this.engine.calculatePenalizacionUnos(numUnos);
     }
 
-    /**
-     * Helper to convert scores (2-1, M-1, 1-1) to signs (1, X, 2)
-     */
     normalizeSign(res) {
-        if (!res) return '';
-        const r = String(res).trim().toUpperCase();
-        if (r === '1' || r === 'X' || r === '2') return r;
-
-        // Multi-goal results (P-15 style or score strings)
-        if (r.includes('-')) {
-            const parts = r.split('-');
-            const val = (s) => (s === 'M' || s === 'M+' ? 3 : parseInt(s) || 0);
-            const home = val(parts[0]);
-            const away = val(parts[1]);
-            if (home > away) return '1';
-            if (home < away) return '2';
-            return 'X';
-        }
-        return r;
+        return this.engine.normalizeSign(res);
     }
 
-    /**
-     * Calculate number of hits (aciertos)
-     */
     calculateAciertos(matches, forecast) {
-        if (!matches || !forecast) return 0;
-
-        let aciertos = 0;
-        // Iterate only up to the minimum of regular matches or forecast length
-        const limit = Math.min(15, matches.length, forecast.length);
-
-        for (let i = 0; i < limit; i++) {
-            const match = matches[i];
-            const pred = String(forecast[i] || '').trim().toUpperCase();
-
-            if (!match.result || match.result === '' || match.result.toLowerCase() === 'por definir') continue;
-
-            const rSign = this.normalizeSign(match.result);
-            const rScore = String(match.result).trim().toUpperCase();
-
-            let isHit = false;
-            if (i === 14) {
-                // El partido 15 NUNCA suma aciertos
-                continue;
-            } else {
-                // 1-14: Support for multiple signs (e.g. "1X" contains "1")
-                isHit = pred.includes(rSign);
-            }
-
-            if (isHit) aciertos++;
-        }
-
-        return aciertos;
+        return this.engine.calculateAciertos(matches, forecast);
     }
 
-    /**
-     * Check if member was winner of a jornada
-     */
-    wasWinnerOfJornada(memberId, jornada) {
-        if (!jornada.matches || jornada.matches.length < 15 || jornada.matches.some(m => !m.result || m.result === '' || m.result === 'por definir')) {
-            return false;
-        }
-
-        const jornadaPronosticos = this.pronosticos.filter(p =>
-        (String(p.jId || p.jornadaId) === String(jornada.id) ||
-            parseInt(p.jId || p.jornadaId) === jornada.number)
-        );
-        if (jornadaPronosticos.length === 0) return false;
-
-        const scores = jornadaPronosticos.map(p => {
-            const currentSelection = p.selection || p.forecast;
-            const aciertos = this.calculateAciertos(jornada.matches, currentSelection);
-            const points = this.calculatePoints(aciertos, p);
-            return { memberId: String(p.memberId || p.mId), points: points };
-        });
-
-        const maxPoints = Math.max(...scores.map(s => s.points));
-        const winners = scores.filter(s => s.points === maxPoints);
-
-        if (winners.length === 1) return String(winners[0].memberId) === String(memberId);
-
-        // Recursive Tie-breaker
-        const finalWinnerId = this.resolveTie(winners.map(w => w.memberId), jornada.number - 1, 'max');
-        return String(finalWinnerId) === String(memberId);
+    wasWinnerOfJornada(memberId, prevJornada) {
+        return this.engine.wasWinnerOfJornada(memberId, prevJornada, this.members, this.jornadas, this.pronosticos);
     }
 
-    /**
-     * Check if member was loser of a jornada
-     */
-    wasLoserOfJornada(memberId, jornada) {
-        if (!jornada.matches || jornada.matches.length < 15 || jornada.matches.some(m => !m.result || m.result === '' || m.result === 'por definir')) {
-            return false;
-        }
-
-        const jornadaPronosticos = this.pronosticos.filter(p => (p.jId === jornada.id || p.jornadaId === jornada.id));
-        if (jornadaPronosticos.length === 0) return false;
-
-        const scores = jornadaPronosticos.map(p => {
-            const currentSelection = p.selection || p.forecast;
-            const aciertos = this.calculateAciertos(jornada.matches, currentSelection);
-            const points = this.calculatePoints(aciertos, p);
-            return { memberId: p.memberId || p.mId, points: points };
-        });
-
-        const minPoints = Math.min(...scores.map(s => s.points));
-        const losers = scores.filter(s => s.points === minPoints);
-
-        if (losers.length === 1) return losers[0].memberId === memberId;
-
-        // Recursive Tie-breaker (The loser is the one with FEWER points in previous jornadas)
-        const finalLoserId = this.resolveTie(losers.map(l => l.memberId), jornada.number - 1, 'min');
-        return finalLoserId === memberId;
+    wasLoserOfJornada(memberId, prevJornada) {
+        return this.engine.wasLoserOfJornada(memberId, prevJornada, this.members, this.jornadas, this.pronosticos);
     }
 
-    resolveTie(memberIds, jornadaNum, type) {
-        if (memberIds.length <= 1 || jornadaNum <= 0) return memberIds[0];
-
-        const prevJornada = this.jornadas.find(j => j.number === jornadaNum);
-        if (!prevJornada) return this.resolveTie(memberIds, jornadaNum - 1, type);
-
-        const scores = memberIds.map(mId => {
-            const pronostico = this.pronosticos.find(p => (p.jId === prevJornada.id || p.jornadaId === prevJornada.id) && (p.mId === mId || p.memberId === mId));
-            if (!pronostico) return { mId, points: 0 };
-            const currentSelection = pronostico.selection || pronostico.forecast;
-            const aciertos = this.calculateAciertos(prevJornada.matches, currentSelection);
-            const points = this.calculatePoints(aciertos, pronostico);
-            return { mId, points };
-        });
-
-        const targetPoints = (type === 'max') ? Math.max(...scores.map(s => s.points)) : Math.min(...scores.map(s => s.points));
-        const survivors = scores.filter(s => s.points === targetPoints).map(s => s.mId);
-
-        if (survivors.length === 1) return survivors[0];
-        // If still tied, go back further
-        return this.resolveTie(survivors, jornadaNum - 1, type);
-    }
-
-    /**
-     * Calculate points based on aciertos and penalties
-     * (Simplified version - should match scoring.js logic)
-     */
-    calculatePoints(aciertos, pronostico) {
-        let points = aciertos;
-        const selection = pronostico.selection || pronostico.forecast;
-
-        // Apply penalties for low hits
-        if (aciertos <= 3) {
-            points -= (4 - aciertos);
-        }
-
-        // Apply penalties for late submission
-        if (pronostico.isLate && !pronostico.pardoned) {
-            points -= 2;
-        }
-
-        // Apply penalty for too many 1s
-        if (selection && Array.isArray(selection)) {
-            const numUnos = selection.slice(0, 14).filter(f => f === '1').length;
-            if (numUnos >= 10) {
-                points -= 1;
-            }
-        }
-
-        return points;
-    }
-
-    /**
-     * Get prizes for a member in a jornada
-     */
     getPrizesForMemberJornada(memberId, jornada) {
-        if (!jornada.prizes || typeof jornada.prizes !== 'object') return 0;
-
-        const mIdStr = String(memberId);
-        const pronostico = this.pronosticos.find(p => {
-            const pJ = String(p.jId || p.jornadaId || '');
-            const matchJ = (pJ === String(jornada.id) || pJ === String(jornada.number));
-            const matchM = (String(p.mId || p.memberId) === mIdStr);
-            return matchJ && matchM;
-        });
-
-        if (!pronostico) return 0;
-
-        const selection = pronostico.selection || pronostico.forecast;
-        const aciertos = this.calculateAciertos(jornada.matches, selection);
-
-        const prizes = jornada.prizes;
-        const prizeVal = prizes[aciertos] || prizes[String(aciertos)] || 0;
-
-        return typeof prizeVal === 'number' ? prizeVal : parseFloat(prizeVal || 0);
+        return this.engine.getPrizesForMemberJornada(memberId, jornada, this.pronosticos);
     }
 
-    /**
-     * Get prizes for the extra column (Doubles) in a jornada
-     */
     getExtraPrizesForJornada(jornada) {
-        if (!jornada.prizes || typeof jornada.prizes !== 'object') return 0;
-        if (!this.pronosticosExtra) return 0;
-        if (!window.ScoringSystem) {
-            console.error("ScoringSystem not available for getExtraPrizesForJornada");
-            return 0;
-        }
-
-        const extras = this.pronosticosExtra.filter(p => {
-            const pJ = String(p.jId || p.jornadaId || '');
-            return pJ === String(jornada.id) || pJ === String(jornada.number);
-        });
-
-        const jDate = window.AppUtils ? window.AppUtils.parseDate(jornada.date) : this.parseDate(jornada.date);
-        const officialResults = (jornada.matches || []).map(m => m.result);
-        const legacyPrizes = jornada.prizes || {};
-
-        let totalExtraPrize = 0;
-        extras.forEach(p => {
-            const selection = p.selection || p.forecast;
-            if (!selection || !Array.isArray(selection)) return;
-
-            const doubleCount = selection.filter((s, i) => i < 14 && s && s.length > 1).length;
-            const isReduced = p.isReduced || (doubleCount === 7);
-
-            const ev = window.ScoringSystem.evaluateForecast(selection, officialResults, jDate, { isReduced });
-
-            if (ev && ev.breakdown) {
-                // REDUCED: Sum all prizes from the breakdown (already based on official categories)
-                Object.keys(ev.breakdown).forEach(h => {
-                    const count = ev.breakdown[h];
-                    if (count > 0 && legacyPrizes[h]) {
-                        totalExtraPrize += count * parseFloat(legacyPrizes[h] || 0);
-                    }
-                });
-            } else if (ev) {
-                // DIRECT: Use officialHits (P15 only if 14 hits)
-                const cat = ev.officialHits;
-                let actualMinHits = jornada.minHitsToWin || 10;
-                if (legacyPrizes && Object.keys(legacyPrizes).length > 0) {
-                    actualMinHits = Math.min(...Object.keys(legacyPrizes).map(Number));
-                }
-                if (cat >= actualMinHits) {
-                    totalExtraPrize += parseFloat(legacyPrizes[cat] || 0);
-                }
-            }
-        });
-
-        return totalExtraPrize;
+        return this.engine.getExtraPrizesForJornada(jornada, this.pronosticosExtra);
     }
 
-    /**
-     * Get manual ingresos for a member in a jornada
-     */
     getManualIngresosForJornada(memberId, jornada) {
-        const jornadaDate = this.parseDate(jornada.date);
-        if (!jornadaDate) return 0;
-
-        // Get ingresos for this member around this jornada date
-        const relevantIngresos = this.ingresos.filter(ing => {
-            if (String(ing.memberId) !== String(memberId)) return false;
-
-            const ingresoDate = new Date(ing.fecha);
-            // Consider ingresos within 7 days of jornada
-            const diffDays = Math.abs((ingresoDate - jornadaDate) / (1000 * 60 * 60 * 24));
-            return diffDays <= 7;
-        });
-
-        return relevantIngresos.reduce((sum, ing) => sum + parseFloat(ing.cantidad), 0);
+        return this.engine.getManualIngresosForJornada(memberId, jornada, this.ingresos);
     }
 
     parseDate(dateStr) {
