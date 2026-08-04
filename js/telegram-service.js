@@ -221,7 +221,7 @@ window.TelegramService = {
                 msg += `${pos}. ${r.name}: *${r.totalPoints}* pts\n`;
             });
 
-            msg += `\n🔗 [Web Peña Maulas](https://peñamaulas.com)`;
+            msg += `\n🔗 [Web Peña Maulas](https://maula-web.github.io/login.html)`;
 
             return await this.sendRaw(tg.token, tg.chatId, msg);
 
@@ -353,7 +353,7 @@ window.TelegramService = {
             const rem = config.find(c => c.id === 'reminder') || {
                 day: 4,
                 hour: 9,
-                message: '¡¡Por fin es jueves!! 🦅\n\nNo olvidéis rellenar la quiniela de la Jornada {jornada}.\n🔗 [Peña Maulas](https://peñamaulas.com)'
+                message: '¡¡Por fin es jueves!! 🦅\n\nNo olvidéis rellenar la quiniela de la Jornada {jornada}.\n🔗 [Peña Maulas](https://maula-web.github.io/login.html)'
             };
 
             if (!tg || !tg.enabled || !tg.reminderEnabled || !tg.token || !tg.chatId) return;
@@ -400,7 +400,7 @@ window.TelegramService = {
             if (targetJornada) {
                 console.log(`TelegramService: Sending Weekly Reminder (J${targetJornada.number})...`);
 
-                let msg = rem.message || '¡¡Por fin es jueves!! 🦅\n\nNo olvidéis rellenar la quiniela de la Jornada {jornada}.\n🔗 [Peña Maulas](https://peñamaulas.com)';
+                let msg = rem.message || '¡¡Por fin es jueves!! 🦅\n\nNo olvidéis rellenar la quiniela de la Jornada {jornada}.\n🔗 [Peña Maulas](https://maula-web.github.io/login.html)';
                 msg = msg.replace('{jornada}', targetJornada.number);
 
                 const hasPIG = targetJornada.matches && targetJornada.matches.some(m => m && AppUtils.isPigMatch(m.home, m.away));
