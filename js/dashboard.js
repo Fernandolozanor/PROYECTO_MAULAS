@@ -206,6 +206,19 @@ class DashboardManager {
                 }
             });
 
+            // HARDCODED HERITAGE FROM PREVIOUS SEASON FOR JORNADA 1
+            if (!lastJornadaInfo && window.AppUtils && window.AppUtils.activeSeason === "2026-2027") {
+                lastJornadaInfo = {
+                    winnerName: "Álvaro",
+                    loserName: "Edu",
+                    doblesEligibleNames: ["Álvaro"],
+                    isPig: false,
+                    prizeWinners: [],
+                    totalMoney: 0,
+                    minHitsToWin: 10
+                };
+            }
+
             // Determine Overall Leader
             let leaderName = "-";
             let leaderPoints = 0;

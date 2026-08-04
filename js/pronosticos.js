@@ -1557,7 +1557,15 @@ class PronosticoManager {
         // CORRECTION MODE BYPASS: If we are in correction mode, always allow managing doubles
         if (this.correctionMode) return { eligible: true };
 
-        if (currentJornadaNum <= 1) return { eligible: false };
+        if (currentJornadaNum <= 1) {
+            if (currentJornadaNum === 1) {
+                const member = this.members.find(m => String(m.id) === String(memberId));
+                if (member && (member.name.toLowerCase() === 'alvaro' || member.name.toLowerCase() === 'álvaro')) {
+                    return { eligible: true, reason: 'winner' };
+                }
+            }
+            return { eligible: false };
+        }
 
         // 1. Encontrar la jornada previa REAL
         const sortedJornadas = [...this.jornadas].sort((a, b) => a.number - b.number);
