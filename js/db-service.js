@@ -246,12 +246,22 @@ class DataService {
     async loadSeasonData() {
         const activeSeason = (window.AppUtils && window.AppUtils.activeSeason) || '2026-2027';
 
-        const [members, allJornadas, pronosticos, pronosticosExtra] = await Promise.all([
+        const [members, allJornadas, pronosticos, pronosticosExtra, scoringRulesDoc] = await Promise.all([
             this.getAll('members'),
             this.getAll('jornadas'),
             this.getAll('pronosticos'),
-            this.getAll('pronosticos_extra').catch(() => [])
+            this.getAll('pronosticos_extra').catch(() => []),
+            this.getDoc('config', 'scoring_rules').catch(() => null)
         ]);
+
+        // Integrate scoring rules history globally
+        if (scoringRulesDoc && scoringRulesDoc.history && window.ScoringSystem) {
+            window.ScoringSystem.historyCache = scoringRulesDoc.history;
+            console.log("DataService: Loaded scoring rules from Firestore");
+            
+            // Sync to local storage for offline fallback and early loads
+            localStorage.setItem('maulas_rules_history', JSON.stringify(scoringRulesDoc.history));
+        }
 
         // Clean & sort members
         const sortedMembers = (members || []).sort((a, b) => parseInt(a.id) - parseInt(b.id));

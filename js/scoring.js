@@ -25,6 +25,8 @@ const ScoringSystem = {
     },
 
     getHistory: function () {
+        if (this.historyCache) return this.historyCache; // Use in-memory cache populated by db-service.js if available
+
         const h = localStorage.getItem('maulas_rules_history');
         if (h) return JSON.parse(h);
         // If nothing, return default history starting "forever ago"
@@ -51,14 +53,29 @@ const ScoringSystem = {
         return match ? match.rules : history[history.length - 1].rules; // Fallback to oldest if target is very old
     },
 
-    saveConfig: function (newRules) {
+    saveConfig: async function (newRules) {
         const history = this.getHistory();
         // Add new entry with current timestamp
         history.push({
             date: new Date().toISOString(),
             rules: newRules
         });
+        
+        // Update memory cache
+        this.historyCache = history;
+        
+        // Save locally as fallback
         localStorage.setItem('maulas_rules_history', JSON.stringify(history));
+
+        // Save to Firestore
+        if (window.DataService && window.DataService.db) {
+            try {
+                await window.DataService.db.collection('config').doc('scoring_rules').set({ history });
+                console.log("Scoring rules synced to Firestore.");
+            } catch (e) {
+                console.error("Error saving scoring rules to Firestore:", e);
+            }
+        }
     },
 
     calculateScore: function (hits, targetDate) {
