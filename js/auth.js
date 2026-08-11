@@ -289,8 +289,8 @@ const Auth = {
                     <span></span>
                 </div>
                 <a href="socios.html" class="btn-primary btn-socios ${page === 'socios.html' ? 'active' : ''}">SOCIOS</a>
-                <a href="jornadas.html" class="btn-primary btn-jornadas ${page === 'jornadas.html' ? 'active' : ''}">JORNADAS</a>
-                <a href="pronosticos.html" class="btn-primary btn-pronosticos ${page === 'pronosticos.html' ? 'active' : ''}">PRONÓSTICOS</a>
+                <a href="jornadas.html" class="btn-primary btn-jornadas ${page === 'jornadas.html' ? 'active' : ''}">RESULTADOS PARTIDOS</a>
+                <a href="pronosticos.html" class="btn-primary btn-pronosticos ${page === 'pronosticos.html' ? 'active' : ''}">RELLENAR QUINIELA</a>
                 <a href="resultados.html" class="btn-primary btn-resultados ${page === 'resultados.html' ? 'active' : ''}">RESULTADOS</a>
                 <a href="bote.html" class="btn-primary btn-bote ${page === 'bote.html' ? 'active' : ''}">BOTE</a>
                 <a href="resumen-temporada.html" class="btn-primary btn-resumen ${page === 'resumen-temporada.html' ? 'active' : ''}">RESUMEN TEMPORADA</a>
