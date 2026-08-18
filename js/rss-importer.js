@@ -7,16 +7,23 @@ class QuinielaScraper {
     constructor() {
         // Use ElQuinielista:
         // - estadisticas page for RESULTS (has clear table structure)
-        // - calendario page for PRIZES
+        // - calendario page for PRIZES and MATCHES
         this.PROXIMAS_URL = 'https://www.elquinielista.com/Quinielista/calendario-quiniela';
         this.RESULTADOS_URL = 'https://www.elquinielista.com/Quinielista/Estadisticas-Quinielas';
         this.PREMIOS_URL = 'https://www.elquinielista.com/Quinielista/calendario-quiniela';
 
+        // CORS Proxies - ordered by reliability (Nov 2026 audit)
+        // NOTE: allorigins.win returns 522/520 for elquinielista.com (Cloudflare blocked)
+        //       corsproxy.io requires paid plan for server-side access
+        //       corsproxy.org redirects to a VPN page
+        //       codetabs.com also returns 522
+        // Keeping list as fallback, but primary strategy is fetchWithFallback()
         this.CORS_PROXIES = [
             'https://api.allorigins.win/raw?url=',
-            'https://corsproxy.io/?',
+            'https://corsproxy.io/?url=',
             'https://api.codetabs.com/v1/proxy?quest=',
-            'https://corsproxy.org/?'
+            'https://cors-anywhere.herokuapp.com/',
+            'https://proxy.cors.sh/'
         ];
 
         this.jornadas = [];
@@ -226,13 +233,101 @@ class QuinielaScraper {
     }
 
     /**
-     * Parses the "Proximas" page (now ElQuinielista) by scanning for blocks of 15 matches.
-     */
-    /**
-     * Parses the "Proximas" page (now ElQuinielista) by scanning for blocks of 15 matches.
-     * Pattern observed: 'Jornada :', '3', ... '1º', 'Alavés', 'At.Madrid'
+     * Parses the "Proximas" page (ElQuinielista calendario-quiniela).
+     * Uses the actual DOM structure of the page:
+     *   - <span id="lbJornada">N</span>   -> jornada number
+     *   - <span id="lbFecha">dd/MM/yyyy HH:mm:ss</span> -> date
+     *   - <span id="LbNumero">Nº</span>   -> match position
+     *   - <span id="lbEquipoCasa">Name</span>  -> home team
+     *   - <span id="lbEquipoVisitante">Name</span> -> away team
+     * 
+     * Note: ASP.NET pages reuse the same id across multiple elements. querySelectorAll
+     * returns all of them in document order, which is exactly what we need.
      */
     parseAllProximas(html) {
+        const results = [];
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+
+        // All jornada number spans
+        const jornadaSpans = Array.from(doc.querySelectorAll('span[id="lbJornada"]'));
+        const fechaSpans   = Array.from(doc.querySelectorAll('span[id="lbFecha"]'));
+        const numSpans     = Array.from(doc.querySelectorAll('span[id="LbNumero"]'));
+        const casaSpans    = Array.from(doc.querySelectorAll('span[id="lbEquipoCasa"]'));
+        const visitSpans   = Array.from(doc.querySelectorAll('span[id="lbEquipoVisitante"]'));
+
+        console.log(`[Importer] DOM found: ${jornadaSpans.length} jornadas, ${numSpans.length} positions, ${casaSpans.length} home teams`);
+
+        if (jornadaSpans.length === 0 || casaSpans.length === 0) {
+            // Fallback to old text-based parser if DOM parsing didn't work
+            console.warn('[Importer] DOM parsing found no spans, falling back to text parser');
+            return this.parseAllProximasText(html);
+        }
+
+        // Each jornada block has 15 matches (with some blanks/extras for Pleno al 15)
+        // numSpans, casaSpans, visitSpans all appear in document order, 15 per jornada
+        const matchesPerJornada = 15;
+
+        jornadaSpans.forEach((jSpan, idx) => {
+            const num = parseInt(jSpan.textContent.trim());
+            if (!num || num === 0) return;
+
+            // Parse date
+            let dateObj = null;
+            let dateStr = 'Próximamente';
+            if (fechaSpans[idx]) {
+                const rawDate = fechaSpans[idx].textContent.trim(); // "16/08/2026 22:00:00"
+                const dm = rawDate.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+                if (dm) {
+                    dateObj = new Date(parseInt(dm[3]), parseInt(dm[2]) - 1, parseInt(dm[1]));
+                    dateStr = this.formatDate(dateObj);
+                }
+            }
+
+            // Collect matches for this jornada block
+            const startIdx = idx * matchesPerJornada;
+            const matches = [];
+
+            for (let i = 0; i < matchesPerJornada; i++) {
+                const posSpan  = numSpans[startIdx + i];
+                const casaSpan = casaSpans[startIdx + i];
+                const visitSpan = visitSpans[startIdx + i];
+
+                if (!casaSpan || !visitSpan) break;
+
+                const home = this.cleanTeamName(casaSpan.textContent.trim());
+                const away = this.cleanTeamName(visitSpan.textContent.trim());
+                const pos  = posSpan ? parseInt(posSpan.textContent.trim()) : (i + 1);
+
+                // Skip blanks (the page sometimes has empty placeholder rows)
+                if (!home || !away || home.length < 2 || away.length < 2) continue;
+
+                matches.push({
+                    position: pos || (matches.length + 1),
+                    home,
+                    away,
+                    result: ''
+                });
+            }
+
+            if (matches.length >= 14) {
+                results.push({
+                    number: num,
+                    dateStr,
+                    dateObj,
+                    matches: matches.slice(0, 15)
+                });
+                console.log(`[Importer] Parsed J${num} (${dateStr}): ${matches.length} matches`);
+            }
+        });
+
+        return this.deduplicateJornadas(results);
+    }
+
+    /**
+     * Fallback text-based parser for parseAllProximas (legacy, kept for resilience)
+     */
+    parseAllProximasText(html) {
         const results = [];
         const parser = new DOMParser();
         const doc = parser.parseFromString(html, 'text/html');
@@ -255,15 +350,12 @@ class QuinielaScraper {
             const line = lines[i];
 
             // 1. Detect Jornada Start
-            // Log shows: 'Jornada :', '3' -> unlikely to be same line in split?
             if (line.match(/^Jornada\s*:/i)) {
                 let num = 0;
-                // Check if number is in same line "Jornada : 34"
                 const sameLineMatch = line.match(/^Jornada\s*:\s*(\d+)/i);
                 if (sameLineMatch) {
                     num = parseInt(sameLineMatch[1]);
                 } else if (i + 1 < lines.length) {
-                    // Check next line
                     const nextLine = lines[i + 1];
                     if (nextLine.match(/^\d+$/)) {
                         num = parseInt(nextLine);
@@ -271,12 +363,9 @@ class QuinielaScraper {
                 }
 
                 if (num > 0) {
-                    // Save previous if valid set
-                    // We need at least 14 matches to consider it a valid jornada import
                     if (currentMatches.length >= 14) {
                         this.saveFoundJornada(results, currentMatches, bufferJornadaInfo);
                     }
-                    // Reset
                     currentMatches = [];
                     bufferJornadaInfo = { number: num, date: null };
                 }
@@ -293,22 +382,15 @@ class QuinielaScraper {
                 }
             }
 
-            // 3. Detect Match "1º", "2º"... "15º" or just "15"
+            // 3. Detect Match position "1º", "2º"... "15º" or just "1"-"15"
             const posMatch = line.match(/^(\d{1,2})[ºª\.]?$/);
             if (posMatch) {
                 const pos = parseInt(posMatch[1]);
-
-                // Validate it's likely a position marker by checking context
-                // Next 2 lines should be texts (Teams)
                 if (pos >= 1 && pos <= 15 && (i + 2 < lines.length)) {
                     const home = lines[i + 1];
                     const away = lines[i + 2];
 
-                    // Basic validation: Teams shouldn't be too short or looking like metadata
-                    // Exclude if it looks like a day "Sábado" or date
                     if (home.length > 2 && away.length > 2 && !home.match(/^\d+$/)) {
-
-                        // Check for duplicates in current block (sometimes page repeats)
                         const exists = currentMatches.find(m => m.position === pos);
                         if (!exists) {
                             currentMatches.push({
@@ -318,8 +400,6 @@ class QuinielaScraper {
                                 result: ''
                             });
                         }
-
-                        // Skip the lines we consumed
                         i += 2;
                     }
                 }
@@ -391,20 +471,27 @@ class QuinielaScraper {
     }
 
     /**
-     * Generic fetch with proxy rotation
+     * Generic fetch with proxy rotation.
+     * Also detects "false positive" responses (proxy returning its own page instead of target).
      */
     async fetchHTML(targetUrl) {
         for (const proxy of this.CORS_PROXIES) {
             try {
                 const finalUrl = proxy + encodeURIComponent(targetUrl);
                 console.log(`Trying ${finalUrl}...`);
-                const response = await fetch(finalUrl);
+                const response = await fetch(finalUrl, { signal: AbortSignal.timeout(8000) });
                 if (response.ok) {
                     const text = await response.text();
-                    if (text.length > 500) return text;
+                    // Validate: must be a real elquinielista.com page, not a proxy's own page
+                    if (text.length > 500 && text.includes('elquinielista')) {
+                        console.log(`[Importer] ✅ Proxy OK: ${proxy} (${text.length} bytes)`);
+                        return text;
+                    } else {
+                        console.warn(`[Importer] Proxy returned unrelated content: ${proxy}`);
+                    }
                 }
             } catch (e) {
-                console.warn(`Proxy ${proxy} failed`, e);
+                console.warn(`Proxy ${proxy} failed`, e.message || e);
             }
         }
         return null;
@@ -448,15 +535,97 @@ class QuinielaScraper {
     }
 
     /**
-     * Parse Results from Estadisticas page
-     * The page has a table with 15 rows of signs. 
-     * Each row is a string like "12X1..." where index corresponds to Jornada - 1.
+     * Parse Results (1, X, 2 + Pleno al 15) from Estadisticas page.
+     * 
+     * The page "Estadísticas de 1X2" has a table with id ending in "gvColGanadoras".
+     * Structure: first row is header (Jornada, sign, Jornada).
+     * Subsequent rows: (match_num, sign, match_num) for matches 1-14.
+     * Last match rows with pleno "1<br>1" pattern for match 15.
+     * The sign is in the second cell (class="celda" or "celdaRosa").
+     *
+     * Strategy: find the table by its partial id, extract sign from the middle column.
      */
     parseResultsFromEstadisticas(html, targetJornadaNum) {
         const parser = new DOMParser();
         const doc = parser.parseFromString(html, 'text/html');
 
         console.log(`[Estadisticas] Parsing J${targetJornadaNum} using DOM Table strategy...`);
+
+        // 1. Find the COLUMNAS GANADORAS table
+        // The table id is: ctl00_ContentPlaceHolder1_CEstPosiciones1_gvColGanadoras
+        let table = doc.querySelector('table[id*="gvColGanadoras"]');
+
+        if (!table) {
+            // Fallback: look for any table that has "Jornada" in its first header cell
+            const allTables = Array.from(doc.querySelectorAll('table'));
+            table = allTables.find(t => {
+                const firstCell = t.querySelector('td, th');
+                return firstCell && firstCell.textContent.includes('Jornada');
+            });
+        }
+
+        if (!table) {
+            // Last resort: old column-based approach
+            return this.parseResultsFromEstadisticasLegacy(html, targetJornadaNum);
+        }
+
+        const rows = Array.from(table.querySelectorAll('tr'));
+        const matches = [];
+
+        // Rows: row[0] = header (Jornada, 1, Jornada)
+        // row[1..14] = matches 1-14 (match_num, sign, match_num)
+        // row[15] = match 15 pleno sign
+        // row[16..] = stats (Unos, Vtes., Equis, Doses)
+        // We skip the header and collect sign from middle cell until we hit non-sign rows.
+
+        for (let r = 1; r < rows.length; r++) {
+            const cells = Array.from(rows[r].querySelectorAll('td'));
+            if (cells.length < 2) continue;
+
+            const numText = cells[0].textContent.trim();
+            const signText = cells[1].textContent.trim().toUpperCase();
+
+            // Stop when we hit stats rows (Unos, Vtes., Equis, Doses, etc.)
+            if (['UNOS', 'VTES.', 'EQUIS', 'DOSES', '&NBSP;', ''].includes(numText.toUpperCase()) ||
+                numText.toUpperCase() === 'UNOS') break;
+
+            const matchNum = parseInt(numText);
+            if (!matchNum || matchNum < 1 || matchNum > 15) continue;
+
+            if (matchNum <= 14) {
+                // Standard sign: 1, X, 2
+                const signMatch = signText.match(/[1X2]/);
+                if (signMatch) {
+                    matches.push({ position: matchNum, result: signMatch[0] });
+                    console.log(`[Estadisticas] Match ${matchNum}: ${signMatch[0]}`);
+                }
+            } else {
+                // Pleno al 15: score format "1<br>1" -> "1-1" or "M0" etc.
+                // The innerHTML may contain a <br> between two digits
+                const raw = cells[1].innerHTML.replace(/<br\s*\/?>/gi, '-').replace(/<[^>]+>/g, '').trim().toUpperCase();
+                let plenoResult = raw.replace(/[^012M\-]/g, '');
+                if (plenoResult.length === 2 && !plenoResult.includes('-')) {
+                    plenoResult = plenoResult[0] + '-' + plenoResult[1];
+                }
+                if (plenoResult.length >= 1) {
+                    matches.push({ position: 15, result: plenoResult });
+                    console.log(`[Estadisticas] Match 15 (PLENO): ${plenoResult}`);
+                }
+            }
+        }
+
+        console.log(`[Estadisticas] Total extracted: ${matches.length} matches.`);
+        return matches.length >= 14 ? matches : null;
+    }
+
+    /**
+     * Legacy fallback for parseResultsFromEstadisticas (old column-scan approach)
+     */
+    parseResultsFromEstadisticasLegacy(html, targetJornadaNum) {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+
+        console.log(`[Estadisticas][Legacy] Parsing J${targetJornadaNum}...`);
 
         // 1. Find the table row (tr) that contains the jornada headers
         const allRows = Array.from(doc.querySelectorAll('tr'));
@@ -467,27 +636,23 @@ class QuinielaScraper {
             const cells = Array.from(row.querySelectorAll('td, th'));
             const cellTexts = cells.map(c => c.innerText.trim());
 
-            // Look for a row that has "Jornada" (or "Jornadas") and our target number as a solo cell
             if (cellTexts.some(t => t.toLowerCase().includes('jornada')) && cellTexts.includes(String(targetJornadaNum))) {
                 headerRow = row;
                 colIndex = cellTexts.indexOf(String(targetJornadaNum));
-                console.log(`[Estadisticas] ✅ Found header row. J${targetJornadaNum} is at cell index: ${colIndex}`);
+                console.log(`[Estadisticas][Legacy] Found header row. J${targetJornadaNum} at col: ${colIndex}`);
                 break;
             }
         }
 
         if (!headerRow || colIndex === -1) {
-            console.warn(`[Estadisticas] ❌ Could not find table column for J${targetJornadaNum}`);
+            console.warn(`[Estadisticas][Legacy] Could not find column for J${targetJornadaNum}`);
             return null;
         }
 
         const matches = [];
         let matchCount = 0;
 
-        // 2. Extract signs from the same column in all other rows
-        // We look for rows that contain a result in that specific column
         for (const row of allRows) {
-            // Skip the header itself
             if (row === headerRow) continue;
 
             const cells = Array.from(row.querySelectorAll('td, th'));
@@ -495,43 +660,26 @@ class QuinielaScraper {
                 const char = cells[colIndex].innerText.trim().toUpperCase();
 
                 if (matchCount < 14) {
-                    // PARTIDOS 1 al 14: Signos 1, X, 2
                     const matchResult = char.match(/[1X2]/i);
                     if (matchResult && char.length <= 2) {
-                        matches.push({
-                            position: matchCount + 1,
-                            result: matchResult[0].toUpperCase()
-                        });
+                        matches.push({ position: matchCount + 1, result: matchResult[0].toUpperCase() });
                         matchCount++;
-                        const teamInfo = cells[1] ? cells[1].innerText.trim() : '?';
-                        console.log(`[Estadisticas] Match ${matchCount} (${teamInfo}): ${matchResult[0].toUpperCase()}`);
                     }
                 } else {
-                    // PLENO AL 15: Goles (ej: "21", "M0", "11")
-                    // Aceptamos caracteres 0, 1, 2, M
                     if (char.length >= 1) {
                         let plenoResult = char.replace(/[^012M]/gi, '').toUpperCase();
-                        if (plenoResult.length === 2) {
-                            // Formateamos como "1-1" en lugar de "11"
-                            plenoResult = plenoResult[0] + '-' + plenoResult[1];
-                        }
-
+                        if (plenoResult.length === 2) plenoResult = plenoResult[0] + '-' + plenoResult[1];
                         if (plenoResult.length >= 1) {
-                            matches.push({
-                                position: 15,
-                                result: plenoResult
-                            });
+                            matches.push({ position: 15, result: plenoResult });
                             matchCount++;
-                            console.log(`[Estadisticas] Match 15 (PLENO): ${plenoResult}`);
                         }
                     }
                 }
             }
-
             if (matchCount >= 15) break;
         }
 
-        console.log(`[Estadisticas] Total extracted: ${matches.length} matches.`);
+        console.log(`[Estadisticas][Legacy] Total extracted: ${matches.length} matches.`);
         return matches.length >= 14 ? matches : null;
     }
 
