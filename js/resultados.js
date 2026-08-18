@@ -147,7 +147,7 @@ class ResultsManager {
 
         // 2. Grand Total (Sticky below names)
         theadHtml += `<tr class="total-row row-total">
-                        <td class="sticky-col label-total">TOTAL PUNTOS</td>`;
+                        <td class="sticky-col label-total">PUNTOS GENERAL</td>`;
         sortedMembers.forEach(m => {
             theadHtml += `<td class="accumulated-score" style="font-size: 1.6rem;">${memberStats[m.id].grandTotal}</td>`;
         });
@@ -155,7 +155,7 @@ class ResultsManager {
 
         // 3. Base Hits
         theadHtml += `<tr class="summary-row row-hits">
-                        <td class="sticky-col label-hits">Aciertos Base</td>`;
+                        <td class="sticky-col label-hits">Puntos Semana</td>`;
         sortedMembers.forEach(m => {
             theadHtml += `<td style="color:var(--resultados-summary-row-text); background:var(--resultados-summary-row-bg);">${memberStats[m.id].baseTotal}</td>`;
         });
