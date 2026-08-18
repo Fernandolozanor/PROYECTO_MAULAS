@@ -21,9 +21,10 @@ window.TelegramService = {
             const currentJ = jornadas.find(jor => jor.id == jId);
             if (!currentJ) return;
 
+            const currentSeason = currentJ.season || (window.AppUtils && window.AppUtils.activeSeason) || '2026-2027';
             // 3. Process ALL Results and History for Tie-breaking
             const activeJornadas = jornadas.filter(j =>
-                j.active && j.matches && j.matches[0] && j.matches[0].result
+                j.active && j.matches && j.matches[0] && j.matches[0].result && (j.season || '2026-2027') === currentSeason
             ).sort((a, b) => a.number - b.number);
 
             const memberHistory = {};
@@ -385,6 +386,9 @@ window.TelegramService = {
                 if (!j.active) return false;
                 // If already sent, skip
                 if (j.thursdayReminderSent) return false;
+
+                const activeSeason = (window.AppUtils && window.AppUtils.activeSeason) || '2026-2027';
+                if ((j.season || '2026-2027') !== activeSeason) return false;
 
                 const jDate = AppUtils.parseDate(j.date);
                 if (!jDate) return false;

@@ -41,6 +41,8 @@ const Auth = {
                 const jornadas = await window.DataService.getAll('jornadas');
                 const nextJ = jornadas.filter(j => {
                     if (!j.active) return false;
+                    const activeSeason = (window.AppUtils && window.AppUtils.activeSeason) || '2026-2027';
+                    if ((j.season || '2026-2027') !== activeSeason) return false;
                     // Flexible date parse
                     const d = this.parseDate(j.date);
                     return d && d.getDay() === 0; // Sunday
