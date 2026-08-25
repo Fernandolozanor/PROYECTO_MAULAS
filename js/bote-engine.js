@@ -321,8 +321,14 @@ class BoteEngine {
             }
         } else if (jornada.number === 1) {
             const member = members.find(m => String(m.id) === String(memberId));
-            if (member && member.name && member.name.toLowerCase().includes('luismi')) {
-                isMaula = true;
+            if (member && member.name) {
+                const nameLow = member.name.toLowerCase();
+                const is2026 = (this.config.temporadaActual || '').includes('2026');
+                if (is2026 && nameLow === 'edu') {
+                    isMaula = true;
+                } else if (!is2026 && nameLow.includes('luismi')) {
+                    isMaula = true;
+                }
             }
         }
 
