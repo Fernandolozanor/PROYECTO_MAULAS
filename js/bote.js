@@ -18,7 +18,7 @@ class BoteManager {
         this.ingresos = [];
         this.config = {
             costeColumna: 0.75,
-            costeDobles: 12.00,
+            costeDobles: 10.50,
             aportacionSemanal: 1.50,
             boteInicial: 0.00,
             temporadaActual: '2026-2027'
@@ -130,7 +130,15 @@ class BoteManager {
 
         if (boteConfig) {
             this.config = { ...this.config, ...boteConfig };
+            // FIX: Enforce 10.50 for costeDobles so sellado is 26.25 (15.75 singles + 10.50 double)
+            this.config.costeDobles = 10.50;
+            if (this.config.history && this.config.history['costeDobles']) {
+                this.config.history['costeDobles'].forEach(h => h.value = 10.50);
+            }
+        } else {
+            this.config.costeDobles = 10.50;
         }
+        
         if (this.engine) this.engine.config = this.config;
     }
 
@@ -306,11 +314,8 @@ class BoteManager {
             const numSocios = this.members.length;
 
             // Count actual sealed double columns for this giornata
-            const extras = this.pronosticosExtra.filter(p => {
-                const pJ = String(p.jId || p.jornadaId || '');
-                return pJ === String(j.id) || pJ === String(j.number);
-            });
-            const numExtras = extras.length > 0 ? extras.length : 1;
+            // FIX: Always calculate exactly 1 double quiniela per played jornada
+            const numExtras = 1;
 
             totalGastosQuinielas += (numSocios * costCol) + (numExtras * costDob);
         });

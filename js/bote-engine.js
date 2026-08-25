@@ -350,7 +350,9 @@ class BoteEngine {
                 const pJ = String(p.jId || p.jornadaId || '');
                 return pJ === String(jornada.id) || pJ === String(jornada.number);
             });
-            const numExtras = extras.length > 0 ? extras.length : 1;
+            // FIX: Always charge exactly 1 double quiniela per jornada to the Peña
+            // (prevents duplicate DB entries from multiplying the cost)
+            const numExtras = 1;
             const totalCDob = numExtras * cDob;
 
             costs.sellado = -((numMembers * cCol) + totalCDob);
