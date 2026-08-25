@@ -49,11 +49,18 @@ class BoteEngine {
 
             const mIdStr = member.id ? String(member.id) : '';
 
+            // Ingresos manuales SIN jornadaId vinculada (aportaciones directas al bote)
+            const ingresosLibres = ingresos.filter(i =>
+                String(i.memberId || i.mId) === mIdStr &&
+                !i.jornadaId && !i.jId
+            );
+
             // Línea de tiempo combinada
             const timeline = [
                 ...jornadas.map(j => ({ type: 'jornada', date: j.date, data: j })),
                 ...repartos.map(r => ({ type: 'reparto', date: r.date, data: r })),
-                ...cierresVuelta.map(c => ({ type: 'cierre_vuelta', date: c.date, data: c }))
+                ...cierresVuelta.map(c => ({ type: 'cierre_vuelta', date: c.date, data: c })),
+                ...ingresosLibres.map(i => ({ type: 'ingreso_libre', date: i.fecha || i.date, data: i }))
             ].sort((a, b) => {
                 const dA = window.AppUtils.parseDate(a.date) || new Date(0);
                 const dB = window.AppUtils.parseDate(b.date) || new Date(0);
@@ -156,6 +163,28 @@ class BoteEngine {
                             isCierreVuelta: true
                         });
                     }
+                } else if (event.type === 'ingreso_libre') {
+                    // Aportación manual directa al bote (sin jornada vinculada)
+                    const i = event.data;
+                    const amount = parseFloat(i.cantidad || i.amount || 0);
+                    if (amount === 0) return;
+                    boteAcumulado += amount;
+                    movements.push({
+                        type: 'ingreso_libre',
+                        memberId: member.id,
+                        memberName: window.AppUtils.getMemberName(member),
+                        date: i.fecha || i.date,
+                        jornadaNum: null,
+                        jornadaDate: i.fecha || i.date,
+                        description: i.concepto || i.metodo || 'Aportación manual',
+                        ingresosManual: amount,
+                        totalIngresos: amount,
+                        totalGastos: 0,
+                        neto: amount,
+                        boteAcumulado: boteAcumulado,
+                        pennaIn: amount,
+                        isIngresoLibre: true
+                    });
                 }
             });
         });
@@ -401,7 +430,7 @@ class BoteEngine {
         const mId = String(memberId);
         return ingresos
             .filter(i => String(i.jornadaId || i.jId) === jId && String(i.memberId || i.mId) === mId)
-            .reduce((sum, i) => sum + parseFloat(i.amount || 0), 0);
+            .reduce((sum, i) => sum + parseFloat(i.cantidad || i.amount || 0), 0);
     }
 
     getExtraPrizesForJornada(jornada, pronosticosExtra) {
