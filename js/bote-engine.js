@@ -182,7 +182,7 @@ class BoteEngine {
                         totalGastos: 0,
                         neto: amount,
                         boteAcumulado: boteAcumulado,
-                        pennaIn: amount,
+                        pennaIn: 0,
                         isIngresoLibre: true
                     });
                 }

@@ -117,11 +117,19 @@ class BoteManager {
             window.DataService.getAll('cierres_vuelta')
         ]);
 
-        this.boteData = boteCollection || [];
-        this.ingresos = ingresosCollection || [];
-        this.cashPayments = cashCollection || [];
-        this.repartos = (allRepartos || []).filter(r => !r.season || r.season === AppUtils.activeSeason);
-        this.cierresVuelta = (allCierres || []).filter(c => !c.season || c.season === AppUtils.activeSeason);
+        const activeSeason = AppUtils.activeSeason || '2026-2027';
+        
+        const filterBySeason = (item) => {
+            if (item.season) return item.season === activeSeason;
+            // Legacy records without a season tag belong to 2025-2026
+            return activeSeason === '2025-2026';
+        };
+
+        this.boteData = (boteCollection || []).filter(filterBySeason);
+        this.ingresos = (ingresosCollection || []).filter(filterBySeason);
+        this.cashPayments = (cashCollection || []).filter(filterBySeason);
+        this.repartos = (allRepartos || []).filter(filterBySeason);
+        this.cierresVuelta = (allCierres || []).filter(filterBySeason);
     }
 
     async loadConfig() {
