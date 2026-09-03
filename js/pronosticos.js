@@ -1186,23 +1186,31 @@ class PronosticoManager {
 
             if (isDoublesPlayed) {
                 const selection14 = (pExtra.selection && Array.isArray(pExtra.selection)) ? pExtra.selection.slice(0, 14) : [];
-                let line1Html = '';
-                let line2Html = '';
+                let gridColsHtml = '';
 
                 for (let idx = 0; idx < 14; idx++) {
                     const s = selection14[idx];
                     const signStr = (s && typeof s === 'string') ? s.trim() : (s !== undefined && s !== null ? String(s).trim() : '');
-                    if (!signStr || signStr === '-') {
-                        line1Html += '-';
-                        line2Html += '&nbsp;';
-                    } else {
-                        line1Html += signStr.charAt(0) || '-';
+                    
+                    let mainSign = '-';
+                    let subSign = '-';
+                    let isSubActive = false;
+
+                    if (signStr && signStr !== '-') {
+                        mainSign = signStr.charAt(0) || '-';
                         if (signStr.length > 1) {
-                            line2Html += signStr.charAt(1);
-                        } else {
-                            line2Html += '&nbsp;';
+                            subSign = signStr.charAt(1);
+                            isSubActive = true;
                         }
                     }
+
+                    const subClass = isSubActive ? 'sign-sub active' : 'sign-sub empty';
+                    gridColsHtml += `
+                        <div class="doubles-col">
+                            <span class="sign-main">${mainSign}</span>
+                            <span class="${subClass}">${subSign}</span>
+                        </div>
+                    `;
                 }
 
                 let p15Val = '-';
@@ -1217,13 +1225,12 @@ class PronosticoManager {
                 const p15Badge = `<span class="${p15BadgeClass}" title="Pleno al 15">P15: ${p15Val}</span>`;
 
                 doublesContent = `
-                    <div class="summary-forecast summary-doubles-forecast">
-                        <div class="doubles-line-primary">
-                            <span class="doubles-signs">${line1Html}</span>
+                    <div class="summary-doubles-container">
+                        <div class="doubles-grid-wrapper">
+                            <div class="doubles-grid">
+                                ${gridColsHtml}
+                            </div>
                             ${p15Badge}
-                        </div>
-                        <div class="doubles-line-secondary">
-                            <span class="doubles-signs">${line2Html}</span>
                         </div>
                     </div>
                 `;
