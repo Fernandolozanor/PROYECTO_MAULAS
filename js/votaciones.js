@@ -92,12 +92,24 @@ class VotingSystem {
         }
     }
 
+    getCurrentUser() {
+        if (!this.currentUser) {
+            try {
+                this.currentUser = JSON.parse(sessionStorage.getItem('maulas_user'));
+            } catch (e) { }
+        }
+        return this.currentUser;
+    }
+
     canManageVote(v) {
-        if (!this.currentUser) return false;
-        const isCreator = String(this.currentUser.id) === String(v.creatorId);
-        const isEmilio = (this.currentUser.email && this.currentUser.email.toLowerCase() === 'emilio@maulas.com') ||
-            (this.currentUser.phone && String(this.currentUser.phone).includes('667634629'));
-        const isAdmin = window.AuthService && typeof window.AuthService.isAdmin === 'function' ? window.AuthService.isAdmin() : false;
+        const user = this.getCurrentUser();
+        if (!user) return false;
+        const isCreator = v.creatorId !== undefined && v.creatorId !== null && String(user.id) === String(v.creatorId);
+        const isEmilio = (user.email && String(user.email).toLowerCase() === 'emilio@maulas.com') ||
+            (user.name && String(user.name).toLowerCase().includes('emilio')) ||
+            (user.phone && String(user.phone).includes('667634629'));
+        const isAdmin = (window.AuthService && typeof window.AuthService.isAdmin === 'function' ? window.AuthService.isAdmin() : false) ||
+            sessionStorage.getItem('maulas_admin') === 'true';
         return isCreator || isEmilio || isAdmin;
     }
 
@@ -186,10 +198,12 @@ class VotingSystem {
             const isFinished = now > deadline;
             const options = v.options || ["Sí", "No"];
             const canManage = this.canManageVote(v);
+            const canEditDeadline = canManage && !isFinished;
 
+            const user = this.getCurrentUser();
             const getMyVotes = () => {
-                if (!this.currentUser || !v.votes) return [];
-                const val = v.votes[this.currentUser.id];
+                if (!user || !v.votes) return [];
+                const val = v.votes[user.id];
                 if (val === undefined || val === null) return [];
                 return Array.isArray(val) ? val : [val];
             };
@@ -203,8 +217,10 @@ class VotingSystem {
                     <h3 class="vote-title">${v.title}</h3>
                     <div style="display:flex; gap: 0.5rem; align-items:center;">
                         <span class="vote-badge ${isFinished ? 'badge-finished' : 'badge-active'}">${isFinished ? 'Finalizada' : 'Activa'}</span>
-                        ${canManage ? `
+                        ${canEditDeadline ? `
                             <button class="delete-btn" onclick="votingSystem.openEditDeadlineModal('${v.id}')" title="Cambiar fecha de finalización">✏️</button>
+                        ` : ''}
+                        ${canManage ? `
                             <button class="delete-btn" onclick="votingSystem.deleteVote('${v.id}')" title="Borrar Votación">🗑️</button>
                         ` : ''}
                     </div>
@@ -215,7 +231,7 @@ class VotingSystem {
                     <span>Propuesta por: <b>${v.creatorName}</b></span>
                     <span style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
                         Límite: <b>${new Date(v.deadline).toLocaleString()}</b>
-                        ${canManage ? `<button class="btn-change-date" onclick="votingSystem.openEditDeadlineModal('${v.id}')" style="padding: 2px 8px; font-size: 0.75rem; font-weight: bold; cursor: pointer; border-radius: 4px; border: 1px solid var(--primary-blue); background: rgba(21, 101, 192, 0.1); color: var(--primary-blue);">✏️ Cambiar Fecha</button>` : ''}
+                        ${canEditDeadline ? `<button class="btn-change-date" onclick="votingSystem.openEditDeadlineModal('${v.id}')" style="padding: 2px 8px; font-size: 0.75rem; font-weight: bold; cursor: pointer; border-radius: 4px; border: 1px solid var(--primary-blue); background: rgba(21, 101, 192, 0.1); color: var(--primary-blue);">✏️ Cambiar Fecha</button>` : ''}
                     </span>
                     <span>Para ganar: <b>${v.threshold}%</b> de los votos</span>
                     ${v.allowMultiple ? `<span style="color:var(--primary-blue); font-weight:bold;">✅ Elección Múltiple Permitida</span>` : ''}
@@ -449,9 +465,14 @@ class VotingSystem {
     }
 
     openEditDeadlineModal(voteId) {
-        if (!this.currentUser) return alert("Inicia sesión primero.");
+        const user = this.getCurrentUser();
+        if (!user) return alert("Inicia sesión primero.");
         const v = this.votaciones.find(x => x.id === voteId);
         if (!v) return;
+
+        if (new Date() > new Date(v.deadline)) {
+            return alert("La votación ya ha finalizado y no se puede modificar su fecha.");
+        }
 
         if (!this.canManageVote(v)) {
             return alert("Solo el creador o un administrador puede modificar esta fecha.");

@@ -231,14 +231,21 @@
         }
 
         .modal-content {
-            background: var(--modal-bg);
+            background: var(--modal-bg, #ffffff) !important;
+            color: var(--text-main, #333333);
             padding: 2rem;
             border-radius: 16px;
             width: 90%;
             max-width: 500px;
             box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
             margin: auto;
-            /* Ensure it stays centered if smaller than viewport */
+            border: 1px solid var(--input-border, #cccccc);
+        }
+
+        [data-theme="dark"] .modal-content {
+            background: #1e293b !important;
+            color: #f8fafc !important;
+            border-color: #334155 !important;
         }
 
         .form-group {
