@@ -94,8 +94,18 @@ class PronosticoManager {
                 if (cell) {
                     const jId = cell.dataset.jid;
                     const mId = cell.dataset.mid;
-                    if (jId && mId) {
-                        this.selectAndLoad(jId, mId);
+                    if (jId) {
+                        if (mId) {
+                            this.selectAndLoad(jId, mId);
+                        } else if (cell.dataset.isdoubles) {
+                            if (this.selJornada) {
+                                const parsedJId = parseInt(jId) || jId;
+                                this.currentJornadaId = parsedJId;
+                                this.selJornada.value = parsedJId;
+                                this.loadForecast();
+                                window.scrollTo({ top: 0, behavior: 'smooth' });
+                            }
+                        }
                     }
                 }
             });
@@ -1048,6 +1058,13 @@ class PronosticoManager {
             th.textContent = AppUtils.getMemberName(m);
             headerRow.appendChild(th);
         });
+
+        // Add Quiniela Dobles column header at the end
+        const thDoubles = document.createElement('th');
+        thDoubles.className = 'summary-header-cell summary-doubles-header';
+        thDoubles.textContent = 'Quiniela Dobles';
+        headerRow.appendChild(thDoubles);
+
         thead.appendChild(headerRow);
 
         // OPTIMIZATION: Build Maps for O(1) lookups
@@ -1077,19 +1094,31 @@ class PronosticoManager {
             });
         }
 
+        // Map for pronosticosExtra (Quiniela de Dobles)
+        const pronosticosExtraMap = new Map();
+        const jornadasConDobles = new Set();
+        if (this.pronosticosExtra && Array.isArray(this.pronosticosExtra)) {
+            this.pronosticosExtra.forEach(p => {
+                if (!p) return;
+                const jId = String(p.jId !== undefined && p.jId !== null ? p.jId : p.jornadaId);
+                const hasValidSelection = p.selection && Array.isArray(p.selection) && p.selection.some(s => s && String(s).trim() !== '' && String(s) !== '-');
+                if (hasValidSelection) {
+                    jornadasConDobles.add(jId);
+                    pronosticosExtraMap.set(jId, p);
+                }
+            });
+        }
+
         // 3. Sort Jornadas (descending) & Filter empty ones
         let sortedJornadas = [...this.jornadas].sort((a, b) => b.number - a.number);
 
         // Filter: Keep jornadas that have matches informed OR have at least one forecast saved
-        // This ensures that forecasts are visible even if match data hasn't been imported yet
         sortedJornadas = sortedJornadas.filter(j => {
-            // Check if jornada has matches informed
             const hasMatches = j.matches && j.matches.some(m => m.home && m.home.trim() !== '');
-
-            // Check if jornada has any forecasts saved
             const hasForecasts = jornadasConPronostico.has(String(j.id));
+            const hasDobles = jornadasConDobles.has(String(j.id));
 
-            return hasMatches || hasForecasts;
+            return hasMatches || hasForecasts || hasDobles;
         });
 
         if (sortedJornadas.length === 0) {
@@ -1101,10 +1130,8 @@ class PronosticoManager {
         let tbodyHtml = '';
         
         sortedJornadas.forEach(j => {
-            // Format date with Year: "dd/mm/yyyy"
             let dateFormatted = j.date;
             try {
-                // Try parsing our standard format
                 const d = AppUtils.parseDate(j.date);
                 if (d) {
                     dateFormatted = d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -1146,6 +1173,28 @@ class PronosticoManager {
 
                 rowHtml += `<td class="${cellClass}" data-jid="${j.id}" data-mid="${m.id}">${cellContent}</td>`;
             });
+
+            // 5. Add Quiniela de Dobles cell for this jornada
+            const jIdStr = String(j.id);
+            const pExtra = pronosticosExtraMap.get(jIdStr);
+            let doublesContent = '-';
+            let isDoublesPlayed = false;
+
+            if (pExtra && pExtra.selection && Array.isArray(pExtra.selection)) {
+                isDoublesPlayed = pExtra.selection.some(s => s && String(s).trim() !== '' && String(s) !== '-');
+            }
+
+            if (isDoublesPlayed) {
+                const selection14 = pExtra.selection.slice(0, 14);
+                const summary = selection14.map(s => s || '-').join('');
+                doublesContent = `<div class="summary-forecast summary-doubles-forecast">${summary}</div>`;
+            } else {
+                doublesContent = `<span class="summary-no-data">-</span>`;
+            }
+
+            const doublesCellClass = `summary-cell summary-doubles-cell hoverable-cell`;
+            const doublesMemberId = pExtra ? (pExtra.mId || pExtra.memberId || '') : '';
+            rowHtml += `<td class="${doublesCellClass}" data-jid="${j.id}" data-mid="${doublesMemberId}" data-isdoubles="true">${doublesContent}</td>`;
 
             rowHtml += '</tr>';
             tbodyHtml += rowHtml;
@@ -1972,6 +2021,8 @@ class PronosticoManager {
             const existingIdx = this.pronosticosExtra.findIndex(p => p.id === data.id);
             if (existingIdx >= 0) this.pronosticosExtra[existingIdx] = data;
             else this.pronosticosExtra.push(data);
+
+            this.renderSummaryTable();
 
             this.doublesStatus.textContent = '¡Guardado correctamente!';
             this.doublesStatus.style.color = 'green';

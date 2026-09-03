@@ -3487,3 +3487,30 @@ body.mobile-mode .p-divider {
         margin-top: 8px;
     }
 }
+
+/* Summary Table Quiniela de Dobles Column */
+.pronosticos-page .summary-doubles-header {
+    background-color: var(--primary-purple, #673ab7) !important;
+    color: #ffffff !important;
+    border-left: 2px solid rgba(255, 255, 255, 0.2) !important;
+    font-weight: 900;
+}
+
+.pronosticos-page .summary-doubles-cell {
+    background-color: rgba(103, 58, 183, 0.08) !important;
+    border-left: 2px solid rgba(103, 58, 183, 0.3) !important;
+}
+
+.pronosticos-page .summary-doubles-forecast {
+    color: #673ab7;
+    font-weight: 900;
+}
+
+[data-theme="dark"] .pronosticos-page .summary-doubles-cell {
+    background-color: rgba(103, 58, 183, 0.25) !important;
+    border-left: 2px solid rgba(179, 136, 255, 0.4) !important;
+}
+
+[data-theme="dark"] .pronosticos-page .summary-doubles-forecast {
+    color: #b388ff;
+}
