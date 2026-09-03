@@ -92,6 +92,15 @@ class VotingSystem {
         }
     }
 
+    canManageVote(v) {
+        if (!this.currentUser) return false;
+        const isCreator = String(this.currentUser.id) === String(v.creatorId);
+        const isEmilio = (this.currentUser.email && this.currentUser.email.toLowerCase() === 'emilio@maulas.com') ||
+            (this.currentUser.phone && String(this.currentUser.phone).includes('667634629'));
+        const isAdmin = window.AuthService && typeof window.AuthService.isAdmin === 'function' ? window.AuthService.isAdmin() : false;
+        return isCreator || isEmilio || isAdmin;
+    }
+
     cacheDOM() {
         this.listContainer = document.getElementById('votaciones-list');
         this.btnPropose = document.getElementById('btn-propose');
@@ -106,14 +115,26 @@ class VotingSystem {
         this.inpTime = document.getElementById('inp-vote-time');
         this.inpThreshold = document.getElementById('inp-vote-threshold');
         this.inpMultiple = document.getElementById('inp-vote-multiple');
+
+        // Edit Deadline Modal Elements
+        this.editModal = document.getElementById('edit-deadline-modal');
+        this.editForm = document.getElementById('edit-deadline-form');
+        this.btnCancelEdit = document.getElementById('btn-cancel-edit-deadline');
+        this.inpEditVoteId = document.getElementById('inp-edit-vote-id');
+        this.editVoteTitle = document.getElementById('edit-deadline-vote-title');
+        this.inpEditDate = document.getElementById('inp-edit-date');
+        this.inpEditTime = document.getElementById('inp-edit-time');
     }
 
     bindEvents() {
         if (this.btnPropose) this.btnPropose.addEventListener('click', () => this.openModal());
         if (this.btnCancel) this.btnCancel.addEventListener('click', () => this.closeModal());
         if (this.form) this.form.addEventListener('submit', (e) => this.handleSubmit(e));
+        if (this.btnCancelEdit) this.btnCancelEdit.addEventListener('click', () => this.closeEditDeadlineModal());
+        if (this.editForm) this.editForm.addEventListener('submit', (e) => this.handleEditDeadlineSubmit(e));
         window.addEventListener('click', (e) => {
             if (e.target === this.modal) this.closeModal();
+            if (e.target === this.editModal) this.closeEditDeadlineModal();
         });
     }
 
@@ -164,6 +185,7 @@ class VotingSystem {
             const deadline = new Date(v.deadline);
             const isFinished = now > deadline;
             const options = v.options || ["Sí", "No"];
+            const canManage = this.canManageVote(v);
 
             const getMyVotes = () => {
                 if (!this.currentUser || !v.votes) return [];
@@ -181,16 +203,20 @@ class VotingSystem {
                     <h3 class="vote-title">${v.title}</h3>
                     <div style="display:flex; gap: 0.5rem; align-items:center;">
                         <span class="vote-badge ${isFinished ? 'badge-finished' : 'badge-active'}">${isFinished ? 'Finalizada' : 'Activa'}</span>
-                        ${(this.currentUser && (this.currentUser.id == v.creatorId || this.currentUser.email === 'emilio@maulas.com')) ?
-                    `<button class="delete-btn" onclick="votingSystem.deleteVote('${v.id}')" title="Borrar Votación">🗑️</button>` : ''
-                }
+                        ${canManage ? `
+                            <button class="delete-btn" onclick="votingSystem.openEditDeadlineModal('${v.id}')" title="Cambiar fecha de finalización">✏️</button>
+                            <button class="delete-btn" onclick="votingSystem.deleteVote('${v.id}')" title="Borrar Votación">🗑️</button>
+                        ` : ''}
                     </div>
                 </div>
                 ${v.description ? `<p class="vote-desc">${v.description}</p>` : ''}
                 
                 <div class="vote-meta">
                     <span>Propuesta por: <b>${v.creatorName}</b></span>
-                    <span>Límite: ${new Date(v.deadline).toLocaleString()}</span>
+                    <span style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
+                        Límite: <b>${new Date(v.deadline).toLocaleString()}</b>
+                        ${canManage ? `<button class="btn-change-date" onclick="votingSystem.openEditDeadlineModal('${v.id}')" style="padding: 2px 8px; font-size: 0.75rem; font-weight: bold; cursor: pointer; border-radius: 4px; border: 1px solid var(--primary-blue); background: rgba(21, 101, 192, 0.1); color: var(--primary-blue);">✏️ Cambiar Fecha</button>` : ''}
+                    </span>
                     <span>Para ganar: <b>${v.threshold}%</b> de los votos</span>
                     ${v.allowMultiple ? `<span style="color:var(--primary-blue); font-weight:bold;">✅ Elección Múltiple Permitida</span>` : ''}
                 </div>
@@ -419,6 +445,82 @@ class VotingSystem {
             alert("Votación creada con éxito.");
         } catch (e) {
             alert("Error al crear.");
+        }
+    }
+
+    openEditDeadlineModal(voteId) {
+        if (!this.currentUser) return alert("Inicia sesión primero.");
+        const v = this.votaciones.find(x => x.id === voteId);
+        if (!v) return;
+
+        if (!this.canManageVote(v)) {
+            return alert("Solo el creador o un administrador puede modificar esta fecha.");
+        }
+
+        if (this.inpEditVoteId) this.inpEditVoteId.value = v.id;
+        if (this.editVoteTitle) this.editVoteTitle.textContent = v.title;
+
+        const d = new Date(v.deadline);
+        if (!isNaN(d.getTime())) {
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            if (this.inpEditDate) this.inpEditDate.value = `${year}-${month}-${day}`;
+
+            const hours = String(d.getHours()).padStart(2, '0');
+            const minutes = String(d.getMinutes()).padStart(2, '0');
+            if (this.inpEditTime) this.inpEditTime.value = `${hours}:${minutes}`;
+        } else {
+            const now = new Date();
+            if (this.inpEditDate) this.inpEditDate.value = now.toISOString().split('T')[0];
+            if (this.inpEditTime) this.inpEditTime.value = "20:00";
+        }
+
+        if (this.editModal) this.editModal.classList.add('active');
+    }
+
+    closeEditDeadlineModal() {
+        if (this.editModal) this.editModal.classList.remove('active');
+        if (this.editForm) this.editForm.reset();
+    }
+
+    async handleEditDeadlineSubmit(e) {
+        e.preventDefault();
+        const voteId = this.inpEditVoteId ? this.inpEditVoteId.value : null;
+        const v = this.votaciones.find(x => x.id === voteId);
+        if (!v) return alert("No se encuentra la votación.");
+
+        if (!this.canManageVote(v)) {
+            return alert("No tienes permisos para modificar esta votación.");
+        }
+
+        const dateVal = this.inpEditDate ? this.inpEditDate.value : '';
+        const timeVal = (this.inpEditTime && this.inpEditTime.value) ? this.inpEditTime.value : '20:00';
+
+        if (!dateVal) return alert("Debes seleccionar una fecha válida.");
+
+        const newDeadlineDate = new Date(`${dateVal}T${timeVal}`);
+        if (isNaN(newDeadlineDate.getTime())) {
+            return alert("Fecha u hora introducida no válida.");
+        }
+
+        const newDeadlineISO = newDeadlineDate.toISOString();
+        v.deadline = newDeadlineISO;
+
+        // Reset tgNotified if the new deadline is in the future
+        if (newDeadlineDate > new Date()) {
+            v.tgNotified = false;
+        }
+
+        try {
+            await window.DataService.save('votaciones', v);
+            await this.loadData();
+            this.render();
+            this.closeEditDeadlineModal();
+            alert("¡Fecha de finalización modificada con éxito!");
+        } catch (err) {
+            console.error("Error al actualizar fecha de votación:", err);
+            alert("Error al actualizar la fecha: " + err.message);
         }
     }
 }

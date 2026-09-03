@@ -387,6 +387,28 @@
                     <button type="submit" class="btn-save">PUBLICAR VOTACIÓN</button>
                 </div>
             </form>
+    <!-- Modal for editing vote deadline -->
+    <div id="edit-deadline-modal" class="modal">
+        <div class="modal-content" style="max-width: 450px;">
+            <h2 style="margin-bottom:0.5rem; color:var(--text-main); font-size: 1.3rem;">📅 Modificar Fecha Límite</h2>
+            <p id="edit-deadline-vote-title" style="color:var(--primary-blue); font-size: 0.95rem; margin-bottom: 1.2rem; font-weight: bold;"></p>
+            <form id="edit-deadline-form">
+                <input type="hidden" id="inp-edit-vote-id">
+                <div class="form-group-row">
+                    <div class="form-group">
+                        <label>Nueva Fecha</label>
+                        <input type="date" id="inp-edit-date" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Nueva Hora</label>
+                        <input type="time" id="inp-edit-time" required>
+                    </div>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn-cancel" id="btn-cancel-edit-deadline">CANCELAR</button>
+                    <button type="submit" class="btn-save">GUARDAR FECHA</button>
+                </div>
+            </form>
         </div>
     </div>
 
