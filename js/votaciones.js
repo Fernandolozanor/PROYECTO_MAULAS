@@ -466,7 +466,8 @@ class VotingSystem {
 
     openEditDeadlineModal(voteId) {
         const user = this.getCurrentUser();
-        if (!user) return alert("Inicia sesión primero.");
+        if (!user) return alert("Inicia sesión primero para realizar esta acción.");
+
         const v = this.votaciones.find(x => x.id === voteId);
         if (!v) return;
 
@@ -477,6 +478,13 @@ class VotingSystem {
         if (!this.canManageVote(v)) {
             return alert("Solo el creador o un administrador puede modificar esta fecha.");
         }
+
+        if (!this.editModal) this.editModal = document.getElementById('edit-deadline-modal');
+        if (!this.editForm) this.editForm = document.getElementById('edit-deadline-form');
+        if (!this.inpEditVoteId) this.inpEditVoteId = document.getElementById('inp-edit-vote-id');
+        if (!this.editVoteTitle) this.editVoteTitle = document.getElementById('edit-deadline-vote-title');
+        if (!this.inpEditDate) this.inpEditDate = document.getElementById('inp-edit-date');
+        if (!this.inpEditTime) this.inpEditTime = document.getElementById('inp-edit-time');
 
         if (this.inpEditVoteId) this.inpEditVoteId.value = v.id;
         if (this.editVoteTitle) this.editVoteTitle.textContent = v.title;
@@ -497,11 +505,18 @@ class VotingSystem {
             if (this.inpEditTime) this.inpEditTime.value = "20:00";
         }
 
-        if (this.editModal) this.editModal.classList.add('active');
+        if (this.editModal) {
+            this.editModal.classList.add('active');
+            this.editModal.style.display = 'flex';
+        }
     }
 
     closeEditDeadlineModal() {
-        if (this.editModal) this.editModal.classList.remove('active');
+        if (!this.editModal) this.editModal = document.getElementById('edit-deadline-modal');
+        if (this.editModal) {
+            this.editModal.classList.remove('active');
+            this.editModal.style.display = 'none';
+        }
         if (this.editForm) this.editForm.reset();
     }
 
