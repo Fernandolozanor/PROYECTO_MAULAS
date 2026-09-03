@@ -3494,16 +3494,71 @@ body.mobile-mode .p-divider {
     color: #ffffff !important;
     border-left: 2px solid rgba(255, 255, 255, 0.2) !important;
     font-weight: 900;
+    min-width: 210px !important;
 }
 
 .pronosticos-page .summary-doubles-cell {
     background-color: rgba(103, 58, 183, 0.08) !important;
     border-left: 2px solid rgba(103, 58, 183, 0.3) !important;
+    min-width: 210px !important;
+    padding: 0.4rem 0.6rem !important;
 }
 
 .pronosticos-page .summary-doubles-forecast {
-    color: #673ab7;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    line-height: 1.2;
+}
+
+.pronosticos-page .doubles-line-primary,
+.pronosticos-page .doubles-line-secondary {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    white-space: nowrap;
+}
+
+.pronosticos-page .doubles-signs {
+    font-family: monospace;
+    font-size: 0.95rem;
+    letter-spacing: 2px;
     font-weight: 900;
+}
+
+.pronosticos-page .doubles-line-primary .doubles-signs {
+    color: #673ab7;
+}
+
+.pronosticos-page .doubles-line-secondary .doubles-signs {
+    color: #d81b60;
+}
+
+.pronosticos-page .doubles-p15-badge {
+    background: #673ab7;
+    color: #ffffff;
+    font-size: 0.72rem;
+    font-weight: 800;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: var(--main-font-family, sans-serif);
+    letter-spacing: 0;
+    white-space: nowrap;
+}
+
+.pronosticos-page .doubles-p15-badge.empty {
+    opacity: 0.6;
+    background: #78909c;
+}
+
+@media (min-width: 1500px) {
+    .pronosticos-page .doubles-signs {
+        font-size: 1.05rem;
+        letter-spacing: 3px;
+    }
 }
 
 [data-theme="dark"] .pronosticos-page .summary-doubles-cell {
@@ -3511,6 +3566,19 @@ body.mobile-mode .p-divider {
     border-left: 2px solid rgba(179, 136, 255, 0.4) !important;
 }
 
-[data-theme="dark"] .pronosticos-page .summary-doubles-forecast {
+[data-theme="dark"] .pronosticos-page .doubles-line-primary .doubles-signs {
     color: #b388ff;
+}
+
+[data-theme="dark"] .pronosticos-page .doubles-line-secondary .doubles-signs {
+    color: #ff80ab;
+}
+
+[data-theme="dark"] .pronosticos-page .doubles-p15-badge {
+    background: #7c4dff;
+    color: #ffffff;
+}
+
+[data-theme="dark"] .pronosticos-page .doubles-p15-badge.empty {
+    background: #546e7a;
 }

@@ -1185,9 +1185,48 @@ class PronosticoManager {
             }
 
             if (isDoublesPlayed) {
-                const selection14 = pExtra.selection.slice(0, 14);
-                const summary = selection14.map(s => s || '-').join('');
-                doublesContent = `<div class="summary-forecast summary-doubles-forecast">${summary}</div>`;
+                const selection14 = (pExtra.selection && Array.isArray(pExtra.selection)) ? pExtra.selection.slice(0, 14) : [];
+                let line1Html = '';
+                let line2Html = '';
+
+                for (let idx = 0; idx < 14; idx++) {
+                    const s = selection14[idx];
+                    const signStr = (s && typeof s === 'string') ? s.trim() : (s !== undefined && s !== null ? String(s).trim() : '');
+                    if (!signStr || signStr === '-') {
+                        line1Html += '-';
+                        line2Html += '&nbsp;';
+                    } else {
+                        line1Html += signStr.charAt(0) || '-';
+                        if (signStr.length > 1) {
+                            line2Html += signStr.charAt(1);
+                        } else {
+                            line2Html += '&nbsp;';
+                        }
+                    }
+                }
+
+                let p15Val = '-';
+                if (pExtra.selection && Array.isArray(pExtra.selection) && pExtra.selection[14]) {
+                    const rawP15 = String(pExtra.selection[14]).trim();
+                    if (rawP15 && rawP15 !== '-') {
+                        p15Val = rawP15;
+                    }
+                }
+
+                const p15BadgeClass = p15Val !== '-' ? 'doubles-p15-badge' : 'doubles-p15-badge empty';
+                const p15Badge = `<span class="${p15BadgeClass}" title="Pleno al 15">P15: ${p15Val}</span>`;
+
+                doublesContent = `
+                    <div class="summary-forecast summary-doubles-forecast">
+                        <div class="doubles-line-primary">
+                            <span class="doubles-signs">${line1Html}</span>
+                            ${p15Badge}
+                        </div>
+                        <div class="doubles-line-secondary">
+                            <span class="doubles-signs">${line2Html}</span>
+                        </div>
+                    </div>
+                `;
             } else {
                 doublesContent = `<span class="summary-no-data">-</span>`;
             }
